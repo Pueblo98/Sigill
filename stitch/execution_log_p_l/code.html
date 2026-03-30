@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SIGIL TERMINAL - Execution Log</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-container": "#47464c",
+                        "surface-dim": "#131315",
+                        "surface-variant": "#353437",
+                        "secondary-fixed": "#e4e1e8",
+                        "inverse-primary": "#732ee4",
+                        "on-surface-variant": "#ccc3d8",
+                        "primary-container": "#7c3aed",
+                        "on-tertiary-fixed": "#301400",
+                        "surface-container-high": "#2a2a2c",
+                        "tertiary-fixed": "#ffdcc6",
+                        "outline-variant": "#4a4455",
+                        "on-surface": "#e5e1e4",
+                        "surface-tint": "#d2bbff",
+                        "on-primary-fixed": "#25005a",
+                        "primary-fixed": "#eaddff",
+                        "background": "#131315",
+                        "primary-fixed-dim": "#d2bbff",
+                        "on-primary-container": "#ede0ff",
+                        "on-secondary-fixed-variant": "#47464c",
+                        "on-secondary-container": "#b6b4bb",
+                        "on-tertiary": "#4f2500",
+                        "surface-bright": "#39393b",
+                        "outline": "#958da1",
+                        "on-secondary": "#303035",
+                        "surface-container-highest": "#353437",
+                        "surface-container": "#201f21",
+                        "error-container": "#93000a",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#c8c5cc",
+                        "error": "#ffb4ab",
+                        "surface-container-low": "#1b1b1d",
+                        "surface-container-lowest": "#0e0e10",
+                        "tertiary": "#ffb784",
+                        "on-primary-fixed-variant": "#5a00c6",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#1b1b20",
+                        "secondary": "#c8c5cc",
+                        "on-background": "#e5e1e4",
+                        "tertiary-fixed-dim": "#ffb784",
+                        "on-primary": "#3f008e",
+                        "inverse-surface": "#e5e1e4",
+                        "tertiary-container": "#a15100",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "surface": "#131315",
+                        "inverse-on-surface": "#313032",
+                        "primary": "#d2bbff",
+                        "on-tertiary-container": "#ffe0cd"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0e0e10;
+            color: #e5e1e4;
+        }
+        .data-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbar for terminal feel */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0e0e10; }
+        ::-webkit-scrollbar-thumb { background: #39393b; }
+        ::-webkit-scrollbar-thumb:hover { background: #7c3aed; }
+    </style>
+</head>
+<body class="overflow-hidden">
+<!-- TopNavBar -->
+<header class="fixed top-0 z-50 w-full px-4 h-14 bg-[#0e0e10] flex justify-between items-center border-b border-[#1b1b1d]">
+<div class="flex items-center gap-8">
+<span class="text-xl font-black tracking-tighter text-[#7C3AED]">SIGIL</span>
+<div class="hidden md:flex items-center gap-6">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="bg-surface-container-low border-none text-[10px] data-mono tracking-wider w-64 pl-9 focus:ring-1 focus:ring-primary-container h-8" placeholder="SEARCH MARKETS..." type="text"/>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container-high">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-[10px] font-bold tracking-widest uppercase">Live Mode</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="material-symbols-outlined text-on-surface hover:bg-[#39393b] p-2 transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-surface hover:bg-[#39393b] p-2 transition-colors">person</button>
+</div>
+</div>
+</header>
+<div class="flex h-screen pt-14">
+<!-- SideNavBar -->
+<aside class="fixed left-0 h-full w-64 flex flex-col py-6 bg-[#1b1b1d] border-r border-[#201f21] z-40">
+<div class="px-6 mb-8">
+<h2 class="text-xs font-black tracking-[0.2em] text-[#7C3AED]">TERMINAL</h2>
+<p class="text-[9px] data-mono text-on-surface/40 uppercase">v2.4.0-STABLE</p>
+</div>
+<nav class="flex-1">
+<!-- Dashboard -->
+<a class="flex items-center gap-4 px-6 py-3 text-[0.75rem] transition-all duration-200 ease-in-out text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b]" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- Markets -->
+<a class="flex items-center gap-4 px-6 py-3 text-[0.75rem] transition-all duration-200 ease-in-out text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b]" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>Markets</span>
+</a>
+<!-- Trade Detail -->
+<a class="flex items-center gap-4 px-6 py-3 text-[0.75rem] transition-all duration-200 ease-in-out text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b]" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span>Trade Detail</span>
+</a>
+<!-- Execution Log (ACTIVE) -->
+<a class="flex items-center gap-4 px-6 py-3 text-[0.75rem] transition-all duration-200 ease-in-out border-l-4 border-[#7C3AED] bg-[#201f21] text-[#e5e1e4] font-bold" href="#">
+<span class="material-symbols-outlined">history_edu</span>
+<span>Execution Log</span>
+</a>
+<!-- Models -->
+<a class="flex items-center gap-4 px-6 py-3 text-[0.75rem] transition-all duration-200 ease-in-out text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b]" href="#">
+<span class="material-symbols-outlined">hub</span>
+<span>Models</span>
+</a>
+<!-- Data Health -->
+<a class="flex items-center gap-4 px-6 py-3 text-[0.75rem] transition-all duration-200 ease-in-out text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b]" href="#">
+<span class="material-symbols-outlined">monitor_heart</span>
+<span>Data Health</span>
+</a>
+</nav>
+<div class="px-4 mt-auto">
+<button class="w-full bg-primary-container text-on-primary-container py-3 text-xs font-bold tracking-widest uppercase transition-all active:ring-1 active:ring-inset active:ring-[#7C3AED]">
+                    New Trade
+                </button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 flex-1 flex flex-col overflow-hidden bg-surface-container-lowest">
+<!-- Header & Tabs -->
+<div class="px-8 pt-8 pb-4 border-b border-outline-variant/10">
+<div class="flex justify-between items-end mb-6">
+<div>
+<h1 class="text-2xl font-black tracking-tight text-on-surface uppercase">Execution Log</h1>
+<p class="text-xs text-on-surface-variant data-mono">Live reconciliation of algorithmic fills and manual overlays.</p>
+</div>
+<div class="flex gap-2">
+<button class="bg-surface-container p-2 border border-outline-variant/20 hover:bg-surface-bright transition-colors">
+<span class="material-symbols-outlined text-sm">download</span>
+</button>
+<button class="bg-surface-container p-2 border border-outline-variant/20 hover:bg-surface-bright transition-colors">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+</button>
+</div>
+</div>
+<div class="flex gap-8">
+<button class="text-[11px] font-bold tracking-widest uppercase pb-2 border-b-2 border-primary-container text-primary-container">Trade History</button>
+<button class="text-[11px] font-bold tracking-widest uppercase pb-2 border-b-2 border-transparent text-on-surface/40 hover:text-on-surface transition-colors">Settlements</button>
+<button class="text-[11px] font-bold tracking-widest uppercase pb-2 border-b-2 border-transparent text-on-surface/40 hover:text-on-surface transition-colors">Arbitrage Log</button>
+</div>
+</div>
+<!-- Table View -->
+<div class="flex-1 overflow-auto px-8 py-4">
+<div class="min-w-full inline-block align-middle">
+<table class="min-w-full divide-y-0 text-left">
+<thead>
+<tr class="text-[10px] font-bold tracking-tighter text-on-surface-variant/60 uppercase data-mono">
+<th class="pb-4 pr-4">Timestamp</th>
+<th class="pb-4 pr-4">Market</th>
+<th class="pb-4 pr-4">Exchange</th>
+<th class="pb-4 pr-4">Side</th>
+<th class="pb-4 pr-4 text-right">Qty</th>
+<th class="pb-4 pr-4 text-right">Entry</th>
+<th class="pb-4 pr-4 text-right">Exit</th>
+<th class="pb-4 pr-4 text-right">P&amp;L (Net)</th>
+<th class="pb-4 pr-4 text-right">Edge</th>
+<th class="pb-4">Model</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-transparent">
+<!-- Row 1: Profit -->
+<tr class="group hover:bg-surface-bright/30 transition-colors bg-emerald-500/5">
+<td class="py-3 pr-4 text-[11px] data-mono text-on-surface-variant">2023.10.27 14:02:11</td>
+<td class="py-3 pr-4 text-xs font-bold text-on-surface">BTC-USD-PERP</td>
+<td class="py-3 pr-4 text-[10px] uppercase tracking-wider text-on-surface-variant/80">Binance</td>
+<td class="py-3 pr-4 text-[10px] font-black uppercase text-emerald-500">Long</td>
+<td class="py-3 pr-4 text-xs data-mono text-right">1.42</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">34,120.50</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">34,450.00</td>
+<td class="py-3 pr-4 text-xs data-mono text-right font-bold text-emerald-500">+$467.22</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-emerald-400">+12.4¢</td>
+<td class="py-3 text-[10px] font-medium text-primary-fixed-dim uppercase tracking-widest">Momentum-v4</td>
+</tr>
+<!-- Row 2: Loss -->
+<tr class="group hover:bg-surface-bright/30 transition-colors bg-error/5">
+<td class="py-3 pr-4 text-[11px] data-mono text-on-surface-variant">2023.10.27 13:58:02</td>
+<td class="py-3 pr-4 text-xs font-bold text-on-surface">ETH-USD-PERP</td>
+<td class="py-3 pr-4 text-[10px] uppercase tracking-wider text-on-surface-variant/80">Deribit</td>
+<td class="py-3 pr-4 text-[10px] font-black uppercase text-rose-500">Short</td>
+<td class="py-3 pr-4 text-xs data-mono text-right">12.00</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">1,812.20</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">1,820.45</td>
+<td class="py-3 pr-4 text-xs data-mono text-right font-bold text-rose-500">-$98.40</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-rose-400">-2.1¢</td>
+<td class="py-3 text-[10px] font-medium text-primary-fixed-dim uppercase tracking-widest">MeanRev-G2</td>
+</tr>
+<!-- Row 3: Open -->
+<tr class="group hover:bg-surface-bright/30 transition-colors bg-surface-container-low">
+<td class="py-3 pr-4 text-[11px] data-mono text-on-surface-variant">2023.10.27 13:45:55</td>
+<td class="py-3 pr-4 text-xs font-bold text-on-surface">SOL-USD-PERP</td>
+<td class="py-3 pr-4 text-[10px] uppercase tracking-wider text-on-surface-variant/80">Bybit</td>
+<td class="py-3 pr-4 text-[10px] font-black uppercase text-emerald-500">Long</td>
+<td class="py-3 pr-4 text-xs data-mono text-right">450.0</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">32.14</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface/20">--</td>
+<td class="py-3 pr-4 text-xs data-mono text-right font-bold text-on-surface/40">OPEN</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">+4.1¢</td>
+<td class="py-3 text-[10px] font-medium text-primary-fixed-dim uppercase tracking-widest">Arb-Nova</td>
+</tr>
+<!-- Row 4: Profit -->
+<tr class="group hover:bg-surface-bright/30 transition-colors bg-emerald-500/5">
+<td class="py-3 pr-4 text-[11px] data-mono text-on-surface-variant">2023.10.27 12:30:11</td>
+<td class="py-3 pr-4 text-xs font-bold text-on-surface">LINK-USD-PERP</td>
+<td class="py-3 pr-4 text-[10px] uppercase tracking-wider text-on-surface-variant/80">OKX</td>
+<td class="py-3 pr-4 text-[10px] font-black uppercase text-emerald-500">Long</td>
+<td class="py-3 pr-4 text-xs data-mono text-right">1,200</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">11.45</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">11.92</td>
+<td class="py-3 pr-4 text-xs data-mono text-right font-bold text-emerald-500">+$564.00</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-emerald-400">+47.0¢</td>
+<td class="py-3 text-[10px] font-medium text-primary-fixed-dim uppercase tracking-widest">Momentum-v4</td>
+</tr>
+<!-- Row 5: Loss -->
+<tr class="group hover:bg-surface-bright/30 transition-colors bg-error/5">
+<td class="py-3 pr-4 text-[11px] data-mono text-on-surface-variant">2023.10.27 11:15:42</td>
+<td class="py-3 pr-4 text-xs font-bold text-on-surface">BTC-USD-PERP</td>
+<td class="py-3 pr-4 text-[10px] uppercase tracking-wider text-on-surface-variant/80">Binance</td>
+<td class="py-3 pr-4 text-[10px] font-black uppercase text-rose-500">Short</td>
+<td class="py-3 pr-4 text-xs data-mono text-right">0.50</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">34,500.00</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-on-surface-variant">34,612.00</td>
+<td class="py-3 pr-4 text-xs data-mono text-right font-bold text-rose-500">-$56.00</td>
+<td class="py-3 pr-4 text-xs data-mono text-right text-rose-400">-1.2¢</td>
+<td class="py-3 text-[10px] font-medium text-primary-fixed-dim uppercase tracking-widest">Trend-Follow</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Footer Stats Strip -->
+<div class="bg-surface-container border-t border-outline-variant/10 p-0">
+<div class="grid grid-cols-4 divide-x divide-outline-variant/10">
+<div class="p-4 px-8">
+<span class="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant uppercase">Total Trades</span>
+<div class="text-xl data-mono font-bold mt-1">1,402</div>
+</div>
+<div class="p-4 px-8">
+<span class="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant uppercase">Win Rate %</span>
+<div class="text-xl data-mono font-bold mt-1 text-emerald-400">58.2%</div>
+</div>
+<div class="p-4 px-8">
+<span class="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant uppercase">Avg. Edge Captured</span>
+<div class="text-xl data-mono font-bold mt-1 text-primary">+4.2¢</div>
+</div>
+<div class="p-4 px-8">
+<span class="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant uppercase">Fees Paid</span>
+<div class="text-xl data-mono font-bold mt-1 text-rose-400">$4,210.00</div>
+</div>
+</div>
+<!-- Equity Curve line chart placeholder -->
+<div class="h-24 w-full bg-[#0e0e10] relative overflow-hidden flex items-end">
+<!-- Simple SVG Line Chart -->
+<svg class="w-full h-full opacity-60" preserveaspectratio="none" viewbox="0 0 1000 100">
+<path d="M0,80 L100,75 L200,85 L300,70 L400,60 L500,45 L600,50 L700,30 L800,40 L900,15 L1000,20" fill="none" stroke="#7C3AED" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<path d="M0,80 L100,75 L200,85 L300,70 L400,60 L500,45 L600,50 L700,30 L800,40 L900,15 L1000,20 L1000,100 L0,100 Z" fill="url(#equityGradient)"></path>
+<defs>
+<lineargradient id="equityGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#7C3AED" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#7C3AED" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+</svg>
+<!-- Label Overlay -->
+<div class="absolute bottom-2 left-8 text-[9px] font-bold tracking-widest text-on-surface-variant/40 uppercase data-mono">
+                        Net Equity Curve (30-Day Performance)
+                    </div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

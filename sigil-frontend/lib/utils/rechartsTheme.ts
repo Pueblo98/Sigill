@@ -1,0 +1,25 @@
+export const SIGIL_CHART_THEME = {
+  gridColor: '#201f21',
+  axisColor: '#353437',
+  axisTextColor: '#958da1',
+  tooltipBg: '#2a2a2c',
+  tooltipBorder: '#39393b',
+  tooltipText: '#e5e1e4',
+  marketLine: '#7c3aed',
+  modelLine: '#d2bbff',
+  gainColor: '#10b981',
+  lossColor: '#f43f5e',
+  warnColor: '#f59e0b',
+  neutralColor: '#39393b',
+  fillMarket: 'rgba(124, 58, 237, 0.08)',
+  fillModel: 'rgba(210, 187, 255, 0.05)',
+  cursorColor: 'rgba(124, 58, 237, 0.15)',
+
+  // Vertical colors
+  sports: '#60a5fa',
+  politics: '#f87171',
+  economics: '#34d399',
+  weather: '#fbbf24',
+  crypto: '#c084fc',
+  entertainment: '#f472b6',
+}

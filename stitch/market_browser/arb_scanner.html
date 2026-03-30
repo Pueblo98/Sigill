@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>SIGIL | Arbitrage Scanner</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-container": "#7c3aed",
+                        "surface-container": "#201f21",
+                        "surface-container-low": "#1b1b1d",
+                        "surface-container-lowest": "#0e0e10",
+                        "on-surface": "#e5e1e4",
+                        "on-surface-variant": "#958da1",
+                        "primary": "#d2bbff",
+                    },
+                    fontFamily: {
+                        "mono": ["JetBrains Mono", "monospace"],
+                        "sans": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0px" }
+                },
+            },
+        }
+    </script>
+    <style>
+        body { background-color: #0e0e10; color: #e5e1e4; font-family: 'Inter', sans-serif; }
+        .jetbrains { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0e0e10; }
+        ::-webkit-scrollbar-thumb { background: #353437; }
+        .arb-row:hover { background-color: #39393b; }
+        .glow-arb { box-shadow: 0 0 15px rgba(124, 58, 237, 0.1); }
+    </style>
+</head>
+<body class="flex min-h-screen overflow-hidden">
+    <!-- SIDEBAR (Reused from Market Browser) -->
+    <aside class="fixed left-0 top-0 h-full flex flex-col py-6 bg-[#1b1b1d] w-64 border-r border-[#201f21] z-[60]">
+        <div class="px-6 mb-8">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-[#7C3AED] font-black tracking-tighter text-xl">TERMINAL</span>
+                <span class="bg-[#7C3AED]/10 text-[#7C3AED] text-[10px] px-1 jetbrains font-bold">v2.4.0-STABLE</span>
+            </div>
+        </div>
+        <nav class="flex-1 px-4 space-y-1">
+            <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-[#39393b]" href="code.html">
+                <span class="material-symbols-outlined text-sm">dashboard</span>
+                <span class="text-[0.75rem] font-medium tracking-wide">Dashboard</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 border-l-4 border-[#7C3AED] bg-[#201f21] text-[#e5e1e4] font-bold" href="#">
+                <span class="material-symbols-outlined text-sm">analytics</span>
+                <span class="text-[0.75rem] font-medium tracking-wide">Arbitrage Scanner</span>
+            </a>
+            <!-- Add other nav items here -->
+        </nav>
+    </aside>
+
+    <main class="ml-64 flex-1 flex flex-col h-screen">
+        <header class="h-14 border-b border-[#1b1b1d] flex items-center px-8 justify-between">
+            <div class="flex items-center gap-4">
+                <h1 class="text-xl font-black tracking-tighter text-[#7C3AED]">SIGIL // ARB_SCAN</h1>
+                <span class="text-[9px] jetbrains text-emerald-500 bg-emerald-500/10 px-2 py-0.5">SCANNING_LIVE_FEEDS</span>
+            </div>
+            <div class="jetbrains text-[10px] text-on-surface-variant">
+                MATCHED_EVENTS: <span class="text-on-surface">142</span> | ARB_OPPORTUNITIES: <span class="text-emerald-500">12</span>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-auto p-8">
+            <div class="mb-8 flex justify-between items-end">
+                <div>
+                    <h2 class="text-3xl font-black uppercase italic text-on-surface">CROSS-PLATFORM DISCREPANCIES</h2>
+                    <p class="text-[10px] jetbrains text-on-surface-variant uppercase tracking-widest mt-1">Automatic detection of risk-free yields across Kalshi & Polymarket</p>
+                </div>
+                <div class="flex gap-2">
+                    <button class="bg-[#1b1b1d] border border-[#201f21] px-4 py-2 text-[10px] jetbrains hover:bg-[#39393b]">MIN_PROFIT: 2%</button>
+                    <button class="bg-[#7C3AED] text-white px-4 py-2 text-[10px] jetbrains font-bold">EXECUTE_ALL_ARBS</button>
+                </div>
+            </div>
+
+            <!-- ARB TABLE -->
+            <div class="bg-[#201f21] border border-[#1b1b1d]">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-[#1b1b1d] text-[10px] jetbrains text-on-surface-variant uppercase border-b border-[#201f21]">
+                            <th class="px-6 py-4 font-medium">Event / Matched Market</th>
+                            <th class="px-4 py-4 font-medium">Platform A (YES)</th>
+                            <th class="px-4 py-4 font-medium">Platform B (NO)</th>
+                            <th class="px-4 py-4 font-medium text-right">Implied Sum</th>
+                            <th class="px-4 py-4 font-medium text-right text-emerald-500">Net Arb %</th>
+                            <th class="px-6 py-4 font-medium text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-[11px] jetbrains divide-y divide-[#1b1b1d]">
+                        <!-- Arb Row 1 -->
+                        <tr class="arb-row transition-colors">
+                            <td class="px-6 py-5">
+                                <div class="font-bold text-on-surface mb-1">Will the Fed cut rates in December?</div>
+                                <div class="flex gap-2 opacity-40 text-[9px]">
+                                    <span>KAL_FED_DEC_25</span>
+                                    <span>::</span>
+                                    <span>POLY_FED_RATE_CUT</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] bg-emerald-900/30 text-emerald-400 px-1.5 py-0.5 font-bold">KALSHI</span>
+                                    <span class="font-bold">58.0¢</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] bg-blue-900/30 text-blue-400 px-1.5 py-0.5 font-bold">POLYMARKET</span>
+                                    <span class="font-bold">38.5¢</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5 text-right">
+                                <span class="text-on-surface/40">96.5¢</span>
+                            </td>
+                            <td class="px-4 py-5 text-right">
+                                <div class="text-emerald-500 font-bold">+3.5%</div>
+                                <div class="text-[9px] text-on-surface-variant">After Fees</div>
+                            </td>
+                            <td class="px-6 py-5 text-right">
+                                <button class="bg-[#7C3AED]/10 text-[#7C3AED] border border-[#7C3AED]/20 px-4 py-1.5 hover:bg-[#7C3AED] hover:text-white transition-all font-bold">EXECUTE</button>
+                            </td>
+                        </tr>
+                        <!-- Arb Row 2 -->
+                        <tr class="arb-row transition-colors bg-[#1b1b1d]/30">
+                            <td class="px-6 py-5">
+                                <div class="font-bold text-on-surface mb-1">Will Bitcoin reach $100k by Jan 1st?</div>
+                                <div class="flex gap-2 opacity-40 text-[9px]">
+                                    <span>KAL_BTC_100K</span>
+                                    <span>::</span>
+                                    <span>POLY_BTC_MOON</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] bg-emerald-900/30 text-emerald-400 px-1.5 py-0.5 font-bold">KALSHI</span>
+                                    <span class="font-bold">67.0¢</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] bg-blue-900/30 text-blue-400 px-1.5 py-0.5 font-bold">POLYMARKET</span>
+                                    <span class="font-bold">28.0¢</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5 text-right">
+                                <span class="text-on-surface/40">95.0¢</span>
+                            </td>
+                            <td class="px-4 py-5 text-right">
+                                <div class="text-emerald-500 font-bold">+5.0%</div>
+                                <div class="text-[9px] text-on-surface-variant">After Fees</div>
+                            </td>
+                            <td class="px-6 py-5 text-right">
+                                <button class="bg-[#7C3AED]/10 text-[#7C3AED] border border-[#7C3AED]/20 px-4 py-1.5 hover:bg-[#7C3AED] hover:text-white transition-all font-bold">EXECUTE</button>
+                            </td>
+                        </tr>
+                        <!-- Arb Row 3 -->
+                        <tr class="arb-row transition-colors">
+                            <td class="px-6 py-5">
+                                <div class="font-bold text-on-surface mb-1">Will ETH ETF Approval occur in Q1?</div>
+                                <div class="flex gap-2 opacity-40 text-[9px]">
+                                    <span>KAL_ETH_ETF</span>
+                                    <span>::</span>
+                                    <span>POLY_ETH_SPOT</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] bg-emerald-900/30 text-emerald-400 px-1.5 py-0.5 font-bold">KALSHI</span>
+                                    <span class="font-bold">45.0¢</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] bg-blue-900/30 text-blue-400 px-1.5 py-0.5 font-bold">POLYMARKET</span>
+                                    <span class="font-bold">52.5¢</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-5 text-right">
+                                <span class="text-on-surface/40">97.5¢</span>
+                            </td>
+                            <td class="px-4 py-5 text-right">
+                                <div class="text-emerald-500 font-bold">+2.5%</div>
+                                <div class="text-[9px] text-on-surface-variant">After Fees</div>
+                            </td>
+                            <td class="px-6 py-5 text-right">
+                                <button class="bg-[#7C3AED]/10 text-[#7C3AED] border border-[#7C3AED]/20 px-4 py-1.5 hover:bg-[#7C3AED] hover:text-white transition-all font-bold">EXECUTE</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Visualizer Section -->
+            <div class="mt-12 grid grid-cols-12 gap-6">
+                <div class="col-span-12 lg:col-span-8 bg-[#201f21] p-6 border border-[#1b1b1d]">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xs font-bold uppercase jetbrains tracking-widest text-on-surface/60">Arb Opportunity Visualizer</h3>
+                        <div class="flex gap-4">
+                             <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 bg-emerald-500"></div>
+                                <span class="text-[9px] jetbrains">KALSHI_PX</span>
+                             </div>
+                             <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 bg-blue-500"></div>
+                                <span class="text-[9px] jetbrains">POLY_PX</span>
+                             </div>
+                        </div>
+                    </div>
+                    <div class="h-64 flex items-end gap-12 px-8">
+                        <!-- Chart Bar 1 -->
+                        <div class="flex-1 flex flex-col items-center gap-2">
+                            <div class="w-full flex gap-1">
+                                <div class="flex-1 bg-emerald-500/80" style="height: 180px"></div>
+                                <div class="flex-1 bg-blue-500/80" style="height: 120px"></div>
+                            </div>
+                            <span class="text-[9px] jetbrains text-on-surface-variant uppercase">FED_DEC</span>
+                        </div>
+                        <!-- Chart Bar 2 -->
+                        <div class="flex-1 flex flex-col items-center gap-2">
+                            <div class="w-full flex gap-1">
+                                <div class="flex-1 bg-emerald-500/80" style="height: 220px"></div>
+                                <div class="flex-1 bg-blue-500/80" style="height: 140px"></div>
+                            </div>
+                            <span class="text-[9px] jetbrains text-on-surface-variant uppercase">BTC_100K</span>
+                        </div>
+                         <!-- Chart Bar 3 -->
+                         <div class="flex-1 flex flex-col items-center gap-2">
+                            <div class="w-full flex gap-1">
+                                <div class="flex-1 bg-emerald-500/80" style="height: 150px"></div>
+                                <div class="flex-1 bg-blue-500/80" style="height: 160px"></div>
+                            </div>
+                            <span class="text-[9px] jetbrains text-on-surface-variant uppercase">ETH_ETF</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-span-12 lg:col-span-4 bg-[#201f21] p-6 border border-[#1b1b1d] flex flex-col gap-6">
+                    <h3 class="text-xs font-bold uppercase jetbrains tracking-widest text-on-surface/60">Execution Stats</h3>
+                    <div class="space-y-4">
+                        <div class="bg-[#0e0e10] p-4">
+                            <p class="text-[9px] jetbrains text-on-surface-variant mb-1 uppercase">Avg Arb Yield</p>
+                            <p class="text-2xl font-black jetbrains text-emerald-500">3.82%</p>
+                        </div>
+                        <div class="bg-[#0e0e10] p-4">
+                            <p class="text-[9px] jetbrains text-on-surface-variant mb-1 uppercase">Daily Arb Cap</p>
+                            <p class="text-2xl font-black jetbrains text-on-surface">$12,400</p>
+                        </div>
+                        <div class="flex-1 flex items-center justify-center border-2 border-dashed border-[#39393b] p-8">
+                            <span class="text-[9px] jetbrains text-on-surface-variant text-center uppercase tracking-widest leading-loose">
+                                Auto-Execute<br/>Circuit Breaker:<br/>
+                                <span class="text-emerald-500 font-bold">READY</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="h-8 bg-[#1b1b1d] border-t border-[#201f21] px-6 flex items-center justify-between text-[9px] jetbrains text-on-surface-variant font-bold">
+            <div class="flex gap-6">
+                <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-emerald-500 animate-pulse"></span>ARB_SCANNER_ONLINE</div>
+                <div>SCAN_SPEED: 4.2ms/market</div>
+            </div>
+            <div>SIGIL_V2.4.0</div>
+        </footer>
+    </main>
+</body>
+</html>

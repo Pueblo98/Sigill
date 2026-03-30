@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SIGIL | Market Browser</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-container": "#47464c",
+                        "surface-dim": "#131315",
+                        "surface-variant": "#353437",
+                        "secondary-fixed": "#e4e1e8",
+                        "inverse-primary": "#732ee4",
+                        "on-surface-variant": "#ccc3d8",
+                        "primary-container": "#7c3aed",
+                        "on-tertiary-fixed": "#301400",
+                        "surface-container-high": "#2a2a2c",
+                        "tertiary-fixed": "#ffdcc6",
+                        "outline-variant": "#4a4455",
+                        "on-surface": "#e5e1e4",
+                        "surface-tint": "#d2bbff",
+                        "on-primary-fixed": "#25005a",
+                        "primary-fixed": "#eaddff",
+                        "background": "#131315",
+                        "primary-fixed-dim": "#d2bbff",
+                        "on-primary-container": "#ede0ff",
+                        "on-secondary-fixed-variant": "#47464c",
+                        "on-secondary-container": "#b6b4bb",
+                        "on-tertiary": "#4f2500",
+                        "surface-bright": "#39393b",
+                        "outline": "#958da1",
+                        "on-secondary": "#303035",
+                        "surface-container-highest": "#353437",
+                        "surface-container": "#201f21",
+                        "error-container": "#93000a",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#c8c5cc",
+                        "error": "#ffb4ab",
+                        "surface-container-low": "#1b1b1d",
+                        "surface-container-lowest": "#0e0e10",
+                        "tertiary": "#ffb784",
+                        "on-primary-fixed-variant": "#5a00c6",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#1b1b20",
+                        "secondary": "#c8c5cc",
+                        "on-background": "#e5e1e4",
+                        "tertiary-fixed-dim": "#ffb784",
+                        "on-primary": "#3f008e",
+                        "inverse-surface": "#e5e1e4",
+                        "tertiary-container": "#a15100",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "surface": "#131315",
+                        "inverse-on-surface": "#313032",
+                        "primary": "#d2bbff",
+                        "on-tertiary-container": "#ffe0cd"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: { "DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #0e0e10;
+            color: #e5e1e4;
+            font-family: 'Inter', sans-serif;
+        }
+        .jetbrains {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0e0e10;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #353437;
+        }
+    </style>
+</head>
+<body class="flex min-h-screen overflow-hidden">
+<!-- SIDEBAR NAVIGATION (SideNavBar Anchor) -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-6 bg-[#1b1b1d] w-64 border-r border-[#201f21] z-[60]">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-2 mb-1">
+<span class="text-[#7C3AED] font-black tracking-tighter text-xl">TERMINAL</span>
+<span class="bg-[#7C3AED]/10 text-[#7C3AED] text-[10px] px-1 jetbrains font-bold">v2.4.0-STABLE</span>
+</div>
+<div class="flex items-center gap-3 mt-6 p-2 bg-[#0e0e10]">
+<div class="w-8 h-8 bg-[#39393b] flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">person</span>
+</div>
+<div>
+<div class="text-[11px] font-bold jetbrains leading-none">QUANT_USER_01</div>
+<div class="text-[9px] text-on-surface-variant jetbrains">Active Session</div>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1 overflow-y-auto">
+<a class="flex items-center gap-3 px-4 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200 ease-in-out group" href="#">
+<span class="material-symbols-outlined text-sm">dashboard</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 border-l-4 border-[#7C3AED] bg-[#201f21] text-[#e5e1e4] font-bold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-sm">analytics</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Markets</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200 ease-in-out" href="arb_scanner.html">
+<span class="material-symbols-outlined text-sm">swap_horiz</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Arb Scanner</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-sm">receipt_long</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Trade Detail</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-sm">history_edu</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Execution Log</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-sm">hub</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Models</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-sm">monitor_heart</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Data Health</span>
+</a>
+</nav>
+<div class="px-6 mt-auto">
+<button class="w-full bg-[#7C3AED] text-[#ede0ff] py-3 text-[11px] font-bold uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span>
+                New Trade
+            </button>
+</div>
+</aside>
+<!-- MAIN CANVAS -->
+<main class="ml-64 flex-1 flex flex-col h-screen bg-[#0e0e10]">
+<!-- TOP APP BAR (TopNavBar Anchor) -->
+<header class="flex justify-between items-center w-full px-8 h-14 bg-[#0e0e10] border-b border-[#1b1b1d] z-50">
+<div class="flex items-center gap-8 flex-1">
+<span class="text-xl font-black tracking-tighter text-[#7C3AED]">SIGIL</span>
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="w-full bg-[#1b1b1d] border-none text-[10px] jetbrains py-2 pl-10 pr-4 focus:ring-1 focus:ring-[#7C3AED] placeholder:text-on-surface-variant/40" placeholder="SEARCH MARKETS OR SYMBOLS..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 bg-[#1b1b1d] p-1">
+<button class="px-3 py-1 text-[9px] jetbrains font-bold text-on-surface-variant/50 hover:text-on-surface">PAPER</button>
+<button class="px-3 py-1 text-[9px] jetbrains font-bold bg-[#7C3AED]/20 text-[#d2bbff] ring-1 ring-[#7C3AED] shadow-[0_0_15px_rgba(124,58,237,0.3)]">LIVE MODE</button>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<button class="hover:bg-[#39393b] p-2 transition-colors duration-150 relative">
+<span class="material-symbols-outlined text-sm">notifications</span>
+<span class="absolute top-2 right-2 w-1.5 h-1.5 bg-[#7C3AED]"></span>
+</button>
+<button class="hover:bg-[#39393b] p-2 transition-colors duration-150">
+<span class="material-symbols-outlined text-sm">person</span>
+</button>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- MARKET FILTERS SIDEBAR -->
+<aside class="w-72 bg-[#1b1b1d] border-r border-[#201f21] flex flex-col overflow-y-auto">
+<div class="p-6 space-y-8">
+<!-- Categories -->
+<div>
+<h3 class="text-[10px] font-bold jetbrains text-[#7C3AED] uppercase tracking-[0.2em] mb-4">Categories</h3>
+<div class="space-y-1">
+<button class="w-full flex items-center justify-between p-2 hover:bg-[#39393b] transition-colors group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-blue-400">sports_basketball</span>
+<span class="text-xs">Sports</span>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant">expand_more</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 hover:bg-[#39393b] transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-red-400">gavel</span>
+<span class="text-xs">Politics</span>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant">expand_more</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 hover:bg-[#39393b] transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-emerald-400">trending_up</span>
+<span class="text-xs">Economics</span>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant">expand_more</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 hover:bg-[#39393b] transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-yellow-400">wb_sunny</span>
+<span class="text-xs">Weather</span>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant">expand_more</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 hover:bg-[#39393b] transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-purple-400">currency_bitcoin</span>
+<span class="text-xs">Crypto</span>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant">expand_more</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 hover:bg-[#39393b] transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-pink-400">movie</span>
+<span class="text-xs">Entertainment</span>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Exchange Filters -->
+<div>
+<h3 class="text-[10px] font-bold jetbrains text-[#7C3AED] uppercase tracking-[0.2em] mb-4">Exchanges</h3>
+<div class="space-y-3">
+<label class="flex items-center gap-3 cursor-pointer group">
+<input checked="" class="w-4 h-4 bg-[#0e0e10] border-[#39393b] text-[#7C3AED] focus:ring-0" type="checkbox"/>
+<span class="text-xs group-hover:text-[#d2bbff] transition-colors">Kalshi</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input checked="" class="w-4 h-4 bg-[#0e0e10] border-[#39393b] text-[#7C3AED] focus:ring-0" type="checkbox"/>
+<span class="text-xs group-hover:text-[#d2bbff] transition-colors">Polymarket</span>
+</label>
+</div>
+</div>
+<!-- Edge Slider -->
+<div>
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-[10px] font-bold jetbrains text-[#7C3AED] uppercase tracking-[0.2em]">Minimum Edge</h3>
+<span class="jetbrains text-[10px] text-[#d2bbff]">12.4¢</span>
+</div>
+<input class="w-full h-1 bg-[#0e0e10] appearance-none cursor-pointer accent-[#7C3AED]" max="20" min="0" step="0.1" type="range"/>
+<div class="flex justify-between mt-2 jetbrains text-[8px] text-on-surface-variant/40">
+<span>0¢</span>
+<span>20¢</span>
+</div>
+</div>
+<!-- Date Range -->
+<div>
+<h3 class="text-[10px] font-bold jetbrains text-[#7C3AED] uppercase tracking-[0.2em] mb-4">Resolution</h3>
+<div class="bg-[#0e0e10] p-3 space-y-2">
+<div class="flex items-center justify-between">
+<span class="text-[10px] text-on-surface-variant jetbrains">FROM</span>
+<span class="text-[10px] jetbrains">2023.10.24</span>
+</div>
+<div class="h-[1px] bg-[#201f21]"></div>
+<div class="flex items-center justify-between">
+<span class="text-[10px] text-on-surface-variant jetbrains">TO</span>
+<span class="text-[10px] jetbrains">2024.12.31</span>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- MARKET GRID AREA -->
+<section class="flex-1 overflow-y-auto bg-[#0e0e10] p-8">
+<!-- Sorting & Controls -->
+<div class="flex justify-between items-end mb-8">
+<div>
+<h1 class="text-3xl font-black tracking-tight mb-2 uppercase italic text-[#e5e1e4]">MARKET BROWSER</h1>
+<p class="text-[10px] jetbrains text-on-surface-variant tracking-wider uppercase">Live scanning 1,402 active contracts</p>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center bg-[#1b1b1d] border border-[#201f21]">
+<span class="px-3 text-[9px] jetbrains text-on-surface-variant border-r border-[#201f21]">SORT BY</span>
+<select class="bg-transparent border-none text-[10px] jetbrains py-2 px-4 focus:ring-0 cursor-pointer">
+<option>EXPECTED EDGE</option>
+<option>RESOLUTION DATE</option>
+<option>24H VOLUME</option>
+</select>
+</div>
+<button class="bg-[#1b1b1d] border border-[#201f21] p-2 hover:bg-[#39393b] transition-colors">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+</button>
+</div>
+</div>
+<!-- Bento Grid Markets -->
+<div class="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
+<!-- Market Card 1 (High Edge) -->
+<div class="group relative bg-[#201f21] border border-[#7C3AED]/40 shadow-[0_0_20px_rgba(124,58,237,0.1)] hover:shadow-[0_0_30px_rgba(124,58,237,0.25)] transition-all duration-300 p-6 flex flex-col h-[340px]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-[#7C3AED] text-[#ede0ff] text-[9px] font-bold px-2 py-0.5 jetbrains tracking-widest uppercase">HIGH EDGE</span>
+<div class="flex gap-2">
+<span class="bg-blue-900/30 text-blue-400 text-[9px] jetbrains font-bold px-2 py-0.5">POLYMARKET</span>
+<span class="material-symbols-outlined text-on-surface-variant text-sm hover:text-white cursor-pointer">star</span>
+</div>
+</div>
+<h2 class="text-lg font-bold leading-tight mb-6 group-hover:text-[#d2bbff] transition-colors">Will the Federal Reserve cut rates by 25bps in December?</h2>
+<div class="flex-1 grid grid-cols-2 gap-8 items-center">
+<!-- Circular Arc Gauge -->
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" stroke-width="8"></circle>
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#7C3AED" stroke-dasharray="364" stroke-dashoffset="100" stroke-width="8"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="jetbrains text-2xl font-black">72%</span>
+<span class="text-[8px] uppercase tracking-widest text-on-surface-variant font-bold">Probability</span>
+</div>
+</div>
+<!-- Model vs Market Comparison -->
+<div class="space-y-4">
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Model Px</span>
+<span class="text-[#7C3AED]">72.4¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#7C3AED] transition-all" style="width: 72%;"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Market Px</span>
+<span>58.0¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#39393b] transition-all" style="width: 58%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Hover Overlay - Features -->
+<div class="absolute inset-0 bg-[#201f21] p-6 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex flex-col">
+<h3 class="text-[10px] font-black jetbrains text-[#7C3AED] uppercase tracking-[0.2em] mb-4">Model Drivers</h3>
+<div class="space-y-4">
+<div class="flex items-center gap-3">
+<div class="w-1 h-8 bg-emerald-500"></div>
+<div>
+<div class="text-[10px] font-bold">CPI DATA TRENDS</div>
+<div class="text-[9px] text-on-surface-variant jetbrains">+14.2% Weight</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-1 h-8 bg-emerald-500"></div>
+<div>
+<div class="text-[10px] font-bold">FOMC MINUTES ANALYTICS</div>
+<div class="text-[9px] text-on-surface-variant jetbrains">+8.5% Weight</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-1 h-8 bg-rose-500"></div>
+<div>
+<div class="text-[10px] font-bold">HISTORICAL SEASONALITY</div>
+<div class="text-[9px] text-on-surface-variant jetbrains">-3.1% Weight</div>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-4 border-t border-[#39393b] flex justify-between items-center">
+<span class="text-[9px] jetbrains text-on-surface-variant">CONFIDENCE: 94.2%</span>
+<span class="bg-white/10 text-white text-[9px] font-bold px-2 py-1 uppercase">Analysis View</span>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] jetbrains">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-xs">schedule</span>
+<span>ENDS IN 12D 04H</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-on-surface-variant uppercase">EDGE</span>
+<span class="text-[#d2bbff] font-bold">+14.4¢</span>
+</div>
+</div>
+</div>
+<!-- Market Card 2 -->
+<div class="group bg-[#201f21] border border-[#1b1b1d] hover:bg-[#2a2a2c] transition-all p-6 flex flex-col h-[340px]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-[#39393b] text-on-surface-variant text-[9px] font-bold px-2 py-0.5 jetbrains tracking-widest uppercase">STABLE EDGE</span>
+<div class="flex gap-2">
+<span class="bg-emerald-900/30 text-emerald-400 text-[9px] jetbrains font-bold px-2 py-0.5">KALSHI</span>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">star</span>
+</div>
+</div>
+<h2 class="text-lg font-bold leading-tight mb-6">Will NYC record a daily high over 80°F before Nov 1?</h2>
+<div class="flex-1 grid grid-cols-2 gap-8 items-center">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" stroke-width="8"></circle>
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#d2bbff" stroke-dasharray="364" stroke-dashoffset="280" stroke-width="6"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="jetbrains text-2xl font-black">23%</span>
+<span class="text-[8px] uppercase tracking-widest text-on-surface-variant font-bold">Probability</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Model Px</span>
+<span class="text-[#d2bbff]">23.1¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#d2bbff] transition-all" style="width: 23%;"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Market Px</span>
+<span>21.0¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#39393b] transition-all" style="width: 21%;"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] jetbrains">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-xs">schedule</span>
+<span>ENDS IN 08H 12M</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-on-surface-variant uppercase">EDGE</span>
+<span class="text-[#d2bbff] font-bold">+2.1¢</span>
+</div>
+</div>
+</div>
+<!-- Market Card 3 (High Edge) -->
+<div class="group relative bg-[#201f21] border border-[#7C3AED]/40 shadow-[0_0_20px_rgba(124,58,237,0.1)] hover:shadow-[0_0_30px_rgba(124,58,237,0.25)] transition-all duration-300 p-6 flex flex-col h-[340px]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-[#7C3AED] text-[#ede0ff] text-[9px] font-bold px-2 py-0.5 jetbrains tracking-widest uppercase">HIGH EDGE</span>
+<div class="flex gap-2">
+<span class="bg-blue-900/30 text-blue-400 text-[9px] jetbrains font-bold px-2 py-0.5">POLYMARKET</span>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">star</span>
+</div>
+</div>
+<h2 class="text-lg font-bold leading-tight mb-6 group-hover:text-[#d2bbff] transition-colors">Candidate X to win the 2024 Popular Vote?</h2>
+<div class="flex-1 grid grid-cols-2 gap-8 items-center">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" stroke-width="8"></circle>
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#7C3AED" stroke-dasharray="364" stroke-dashoffset="180" stroke-width="8"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="jetbrains text-2xl font-black">51%</span>
+<span class="text-[8px] uppercase tracking-widest text-on-surface-variant font-bold">Probability</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Model Px</span>
+<span class="text-[#7C3AED]">51.2¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#7C3AED] transition-all" style="width: 51%;"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Market Px</span>
+<span>39.0¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#39393b] transition-all" style="width: 39%;"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] jetbrains">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-xs">schedule</span>
+<span>ENDS IN 11D 20H</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-on-surface-variant uppercase">EDGE</span>
+<span class="text-[#d2bbff] font-bold">+12.2¢</span>
+</div>
+</div>
+</div>
+<!-- Market Card 4 -->
+<div class="group bg-[#201f21] border border-[#1b1b1d] hover:bg-[#2a2a2c] transition-all p-6 flex flex-col h-[340px]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-[#39393b] text-on-surface-variant text-[9px] font-bold px-2 py-0.5 jetbrains tracking-widest uppercase">STABLE EDGE</span>
+<div class="flex gap-2">
+<span class="bg-blue-900/30 text-blue-400 text-[9px] jetbrains font-bold px-2 py-0.5">POLYMARKET</span>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">star</span>
+</div>
+</div>
+<h2 class="text-lg font-bold leading-tight mb-6">Ethereum Shanghai upgrade completed by deadline?</h2>
+<div class="flex-1 grid grid-cols-2 gap-8 items-center">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" stroke-width="8"></circle>
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#d2bbff" stroke-dasharray="364" stroke-dashoffset="35" stroke-width="6"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="jetbrains text-2xl font-black">89%</span>
+<span class="text-[8px] uppercase tracking-widest text-on-surface-variant font-bold">Probability</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Model Px</span>
+<span class="text-[#d2bbff]">89.9¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#d2bbff] transition-all" style="width: 89%;"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Market Px</span>
+<span>88.0¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#39393b] transition-all" style="width: 88%;"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] jetbrains">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-xs">schedule</span>
+<span>ENDS IN 02D 14H</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-on-surface-variant uppercase">EDGE</span>
+<span class="text-[#d2bbff] font-bold">+1.9¢</span>
+</div>
+</div>
+</div>
+<!-- Market Card 5 -->
+<div class="group bg-[#201f21] border border-[#1b1b1d] hover:bg-[#2a2a2c] transition-all p-6 flex flex-col h-[340px]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-[#39393b] text-on-surface-variant text-[9px] font-bold px-2 py-0.5 jetbrains tracking-widest uppercase">LOW LIQUIDITY</span>
+<div class="flex gap-2">
+<span class="bg-emerald-900/30 text-emerald-400 text-[9px] jetbrains font-bold px-2 py-0.5">KALSHI</span>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">star</span>
+</div>
+</div>
+<h2 class="text-lg font-bold leading-tight mb-6">Tesla Model 2 pricing revealed before Q1 earnings?</h2>
+<div class="flex-1 grid grid-cols-2 gap-8 items-center">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" stroke-width="8"></circle>
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#d2bbff" stroke-dasharray="364" stroke-dashoffset="310" stroke-width="6"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="jetbrains text-2xl font-black">15%</span>
+<span class="text-[8px] uppercase tracking-widest text-on-surface-variant font-bold">Probability</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Model Px</span>
+<span class="text-[#d2bbff]">15.4¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#d2bbff] transition-all" style="width: 15%;"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Market Px</span>
+<span>12.0¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#39393b] transition-all" style="width: 12%;"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] jetbrains">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-xs">schedule</span>
+<span>ENDS IN 44D 09H</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-on-surface-variant uppercase">EDGE</span>
+<span class="text-[#d2bbff] font-bold">+3.4¢</span>
+</div>
+</div>
+</div>
+<!-- Market Card 6 (High Edge) -->
+<div class="group relative bg-[#201f21] border border-[#7C3AED]/40 shadow-[0_0_20px_rgba(124,58,237,0.1)] hover:shadow-[0_0_30px_rgba(124,58,237,0.25)] transition-all duration-300 p-6 flex flex-col h-[340px]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-[#7C3AED] text-[#ede0ff] text-[9px] font-bold px-2 py-0.5 jetbrains tracking-widest uppercase">HIGH EDGE</span>
+<div class="flex gap-2">
+<span class="bg-blue-900/30 text-blue-400 text-[9px] jetbrains font-bold px-2 py-0.5">POLYMARKET</span>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">star</span>
+</div>
+</div>
+<h2 class="text-lg font-bold leading-tight mb-6 group-hover:text-[#d2bbff] transition-colors">Will OPEC+ announce an additional cut of 500k barrels?</h2>
+<div class="flex-1 grid grid-cols-2 gap-8 items-center">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" stroke-width="8"></circle>
+<circle cx="64" cy="64" fill="transparent" r="58" stroke="#7C3AED" stroke-dasharray="364" stroke-dashoffset="240" stroke-width="8"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="jetbrains text-2xl font-black">34%</span>
+<span class="text-[8px] uppercase tracking-widest text-on-surface-variant font-bold">Probability</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Model Px</span>
+<span class="text-[#7C3AED]">34.2¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#7C3AED] transition-all" style="width: 34%;"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] jetbrains font-bold uppercase tracking-wider">
+<span>Market Px</span>
+<span>15.0¢</span>
+</div>
+<div class="h-2 bg-[#0e0e10] overflow-hidden">
+<div class="h-full bg-[#39393b] transition-all" style="width: 15%;"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] jetbrains">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-xs">schedule</span>
+<span>ENDS IN 05D 18H</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-on-surface-variant uppercase">EDGE</span>
+<span class="text-[#d2bbff] font-bold">+19.2¢</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- FOOTER BAR -->
+<footer class="h-8 bg-[#1b1b1d] border-t border-[#201f21] px-6 flex items-center justify-between text-[9px] jetbrains text-on-surface-variant font-bold">
+<div class="flex gap-6">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-emerald-500 animate-pulse"></span>
+                    SYSTEMS NOMINAL
+                </div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[10px]">database</span>
+                    DB LATENCY: 14ms
+                </div>
+</div>
+<div class="flex gap-4">
+<span class="text-[#7C3AED]">BTC/USD: $64,231.40</span>
+<span>ETH/USD: $3,412.11</span>
+<span>GLOBAL VOL: $412.9M</span>
+</div>
+</footer>
+</main>
+</body></html>

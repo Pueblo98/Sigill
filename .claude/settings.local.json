@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(done)",
+      "Bash(npx:*)",
+      "Bash(npm install:*)",
+      "Bash(ls /mnt/c/Users/simon/OneDrive/Desktop/Gamblerr/sigil-frontend/tailwind.config*)"
+    ]
+  }
+}

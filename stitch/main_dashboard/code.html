@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SIGIL | Terminal Precision Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0e0e10;
+            color: #e5e1e4;
+            -webkit-font-smoothing: antialiased;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        /* Custom Scrollbar for Terminal Feel */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1b1b1d;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #39393b;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #7C3AED;
+        }
+        .glass-panel {
+            background: rgba(32, 31, 33, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        .glow-active {
+            box-shadow: 0 0 15px -3px rgba(124, 58, 237, 0.2);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-container": "#47464c",
+                        "surface-dim": "#131315",
+                        "surface-variant": "#353437",
+                        "secondary-fixed": "#e4e1e8",
+                        "inverse-primary": "#732ee4",
+                        "on-surface-variant": "#ccc3d8",
+                        "primary-container": "#7c3aed",
+                        "on-tertiary-fixed": "#301400",
+                        "surface-container-high": "#2a2a2c",
+                        "tertiary-fixed": "#ffdcc6",
+                        "outline-variant": "#4a4455",
+                        "on-surface": "#e5e1e4",
+                        "surface-tint": "#d2bbff",
+                        "on-primary-fixed": "#25005a",
+                        "primary-fixed": "#eaddff",
+                        "background": "#131315",
+                        "primary-fixed-dim": "#d2bbff",
+                        "on-primary-container": "#ede0ff",
+                        "on-secondary-fixed-variant": "#47464c",
+                        "on-secondary-container": "#b6b4bb",
+                        "on-tertiary": "#4f2500",
+                        "surface-bright": "#39393b",
+                        "outline": "#958da1",
+                        "on-secondary": "#303035",
+                        "surface-container-highest": "#353437",
+                        "surface-container": "#201f21",
+                        "error-container": "#93000a",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#c8c5cc",
+                        "error": "#ffb4ab",
+                        "surface-container-low": "#1b1b1d",
+                        "surface-container-lowest": "#0e0e10",
+                        "tertiary": "#ffb784",
+                        "on-primary-fixed-variant": "#5a00c6",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#1b1b20",
+                        "secondary": "#c8c5cc",
+                        "on-background": "#e5e1e4",
+                        "tertiary-fixed-dim": "#ffb784",
+                        "on-primary": "#3f008e",
+                        "inverse-surface": "#e5e1e4",
+                        "tertiary-container": "#a15100",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "surface": "#131315",
+                        "inverse-on-surface": "#313032",
+                        "primary": "#d2bbff",
+                        "on-tertiary-container": "#ffe0cd"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface-container-lowest text-on-surface overflow-hidden">
+<!-- SideNavBar (Execution from JSON) -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-[#1b1b1d] border-r border-[#201f21] flex flex-col py-6 z-50">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">terminal</span>
+</div>
+<div>
+<h2 class="text-sm font-black tracking-tighter text-on-surface">TERMINAL</h2>
+<p class="text-[10px] font-mono text-on-surface/40">v2.4.0-STABLE</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Dashboard (Active) -->
+<a class="flex items-center gap-3 px-6 py-3 border-l-4 border-[#7C3AED] bg-[#201f21] text-[#e5e1e4] font-bold transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xs">dashboard</span>
+<span class="text-[0.75rem] uppercase tracking-wider">Dashboard</span>
+</a>
+<!-- Inactive Items -->
+<a class="flex items-center gap-3 px-6 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xs">analytics</span>
+<span class="text-[0.75rem] uppercase tracking-wider">Markets</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200" href="../market_browser/arb_scanner.html">
+<span class="material-symbols-outlined text-xs">swap_horiz</span>
+<span class="text-[0.75rem] uppercase tracking-wider">Arb Scanner</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xs">receipt_long</span>
+<span class="text-[0.75rem] uppercase tracking-wider">Trade Detail</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xs">history_edu</span>
+<span class="text-[0.75rem] uppercase tracking-wider">Execution Log</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xs">hub</span>
+<span class="text-[0.75rem] uppercase tracking-wider">Models</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#e5e1e4]/60 hover:text-[#e5e1e4] hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xs">monitor_heart</span>
+<span class="text-[0.75rem] uppercase tracking-wider">Data Health</span>
+</a>
+</nav>
+<div class="px-6 mt-auto">
+<button class="w-full bg-primary-container text-on-primary-container py-3 font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all">
+                New Trade
+            </button>
+<div class="mt-6 flex items-center gap-3 pt-6 border-t border-[#353437]">
+<div class="w-8 h-8 bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface/60">person</span>
+</div>
+<div class="overflow-hidden">
+<p class="text-xs font-bold truncate">QUANT_OPERATOR_01</p>
+<p class="text-[10px] text-primary">Live Mode</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<main class="ml-64 min-h-screen flex flex-col">
+<!-- TopAppBar (Execution from JSON) -->
+<header class="h-14 bg-[#0e0e10] border-b border-[#1b1b1d] flex justify-between items-center px-6 sticky top-0 z-40">
+<div class="flex items-center gap-8 flex-1">
+<h1 class="text-xl font-black tracking-tighter text-[#7C3AED]">SIGIL</h1>
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/40 text-sm">search</span>
+<input class="bg-surface-container-low border-none text-[10px] font-mono w-full pl-10 focus:ring-1 focus:ring-primary-container placeholder:text-on-surface/20 py-2" placeholder="SEARCH MARKETS OR SYMBOLS..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+<span class="text-[10px] font-mono text-emerald-500 uppercase tracking-widest">Live Mode</span>
+</div>
+<div class="flex items-center gap-4 text-on-surface/60">
+<button class="hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<button class="hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">person</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Dashboard Grid Content -->
+<div class="p-4 grid grid-cols-12 gap-4 flex-1 overflow-auto">
+<!-- Top-Left: Portfolio Overview -->
+<section class="col-span-12 lg:col-span-5 bg-surface-container p-6 flex flex-col gap-6">
+<div class="flex justify-between items-end">
+<h3 class="text-xs font-medium uppercase tracking-wider text-on-surface/60">Portfolio Overview</h3>
+<span class="text-[10px] font-mono text-on-surface/30">LAST UPDATE: 14:02:11</span>
+</div>
+<div class="flex items-baseline gap-4">
+<span class="text-3xl font-black font-mono tracking-tighter">$124,500.00</span>
+<span class="text-xs font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5">+14.2% ROI</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-low p-4">
+<p class="text-[10px] uppercase text-on-surface/40 mb-1">Unrealized P&amp;L</p>
+<p class="text-lg font-mono font-bold text-emerald-500">+$12,450.20</p>
+</div>
+<div class="bg-surface-container-low p-4">
+<p class="text-[10px] uppercase text-on-surface/40 mb-1">Today's Realized</p>
+<p class="text-lg font-mono font-bold text-emerald-500">+$2,410.50</p>
+</div>
+<div class="bg-surface-container-low p-4">
+<p class="text-[10px] uppercase text-on-surface/40 mb-1">Max Drawdown</p>
+<p class="text-lg font-mono font-bold text-error">8.4%</p>
+</div>
+<div class="bg-surface-container-low p-4">
+<p class="text-[10px] uppercase text-on-surface/40 mb-1">Total Deployable</p>
+<p class="text-lg font-mono font-bold text-on-surface">$42,100.00</p>
+</div>
+</div>
+</section>
+<!-- Top-Right: Active Signals Feed -->
+<section class="col-span-12 lg:col-span-7 bg-surface-container flex flex-col">
+<div class="p-6 border-b border-surface-container-low flex justify-between items-center">
+<h3 class="text-xs font-medium uppercase tracking-wider text-on-surface/60">Active Signals</h3>
+<div class="flex gap-2">
+<span class="bg-primary/10 text-primary text-[9px] font-mono px-2 py-0.5">3 NEW</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto max-h-[400px]">
+<!-- Signal Row 1 (High Edge - Glow) -->
+<div class="p-4 border-b border-surface-container-low flex items-center gap-4 hover:bg-surface-bright transition-colors glow-active relative">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
+<div class="w-16 h-16 flex-shrink-0 bg-surface-container-low flex items-center justify-center">
+<span class="text-[9px] font-black uppercase text-center text-on-surface/40 leading-tight">SPORTS<br/>NFL</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2 mb-1">
+<span class="bg-surface-container-highest text-[9px] font-bold px-1.5 py-0.5">POLYMARKET</span>
+<span class="text-[10px] font-mono text-emerald-500">+11.2¢ EDGE</span>
+</div>
+<h4 class="text-xs font-bold truncate">Will Kansas City Chiefs win Super Bowl LVIII?</h4>
+<div class="flex gap-4 mt-2">
+<div class="text-[10px] font-mono">
+<span class="text-on-surface/40">MODEL:</span> <span class="text-primary">72.4%</span>
+</div>
+<div class="text-[10px] font-mono">
+<span class="text-on-surface/40">MARKET:</span> <span class="text-on-surface">61.2%</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[9px] text-on-surface/40 uppercase mb-1">Kelly Size</p>
+<p class="text-sm font-mono font-black text-on-surface">4.2%</p>
+<button class="mt-2 bg-emerald-500/20 text-emerald-500 text-[9px] font-bold py-1 px-3 border border-emerald-500/20 uppercase tracking-tighter">EXECUTE</button>
+</div>
+</div>
+<!-- Signal Row 2 -->
+<div class="p-4 border-b border-surface-container-low flex items-center gap-4 hover:bg-surface-bright transition-colors">
+<div class="w-16 h-16 flex-shrink-0 bg-surface-container-low flex items-center justify-center">
+<span class="text-[9px] font-black uppercase text-center text-on-surface/40 leading-tight">POLITICS<br/>US24</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2 mb-1">
+<span class="bg-surface-container-highest text-[9px] font-bold px-1.5 py-0.5">KALSHI</span>
+<span class="text-[10px] font-mono text-on-surface/40">+4.8¢ EDGE</span>
+</div>
+<h4 class="text-xs font-bold truncate">Fed Interest Rate Hike in December?</h4>
+<div class="flex gap-4 mt-2">
+<div class="text-[10px] font-mono">
+<span class="text-on-surface/40">MODEL:</span> <span class="text-primary">12.1%</span>
+</div>
+<div class="text-[10px] font-mono">
+<span class="text-on-surface/40">MARKET:</span> <span class="text-on-surface">16.9%</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[9px] text-on-surface/40 uppercase mb-1">Kelly Size</p>
+<p class="text-sm font-mono font-black text-on-surface">1.8%</p>
+<button class="mt-2 bg-surface-container-highest text-on-surface/60 text-[9px] font-bold py-1 px-3 uppercase tracking-tighter">WATCH</button>
+</div>
+</div>
+<!-- Signal Row 3 (High Edge - Glow) -->
+<div class="p-4 border-b border-surface-container-low flex items-center gap-4 hover:bg-surface-bright transition-colors glow-active relative">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
+<div class="w-16 h-16 flex-shrink-0 bg-surface-container-low flex items-center justify-center">
+<span class="text-[9px] font-black uppercase text-center text-on-surface/40 leading-tight">CRYPTO<br/>BTC</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2 mb-1">
+<span class="bg-surface-container-highest text-[9px] font-bold px-1.5 py-0.5">POLYMARKET</span>
+<span class="text-[10px] font-mono text-emerald-500">+16.5¢ EDGE</span>
+</div>
+<h4 class="text-xs font-bold truncate">Will BTC break $100k by Jan 1st?</h4>
+<div class="flex gap-4 mt-2">
+<div class="text-[10px] font-mono">
+<span class="text-on-surface/40">MODEL:</span> <span class="text-primary">84.2%</span>
+</div>
+<div class="text-[10px] font-mono">
+<span class="text-on-surface/40">MARKET:</span> <span class="text-on-surface">67.7%</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[9px] text-on-surface/40 uppercase mb-1">Kelly Size</p>
+<p class="text-sm font-mono font-black text-on-surface">8.4%</p>
+<button class="mt-2 bg-emerald-500 text-on-surface bg-emerald-500 text-[9px] font-bold py-1 px-3 uppercase tracking-tighter">EXECUTE</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Bottom-Left: Open Positions Table -->
+<section class="col-span-12 lg:col-span-8 bg-surface-container flex flex-col overflow-hidden">
+<div class="p-6 border-b border-surface-container-low flex justify-between items-center">
+<h3 class="text-xs font-medium uppercase tracking-wider text-on-surface/60">Open Positions</h3>
+<div class="flex items-center gap-4">
+<span class="text-[10px] font-mono text-on-surface/40">8 ACTIVE TRADES</span>
+<span class="material-symbols-outlined text-sm cursor-pointer hover:text-primary">filter_list</span>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low text-[10px] font-mono uppercase text-on-surface/40">
+<th class="px-6 py-3 font-medium">Market</th>
+<th class="px-2 py-3 font-medium">Side</th>
+<th class="px-2 py-3 font-medium text-right">Contracts</th>
+<th class="px-2 py-3 font-medium text-right">Avg Entry</th>
+<th class="px-2 py-3 font-medium text-right">Current</th>
+<th class="px-2 py-3 font-medium text-right">Unrealized P&amp;L</th>
+<th class="px-6 py-3 font-medium text-right">Resolution</th>
+</tr>
+</thead>
+<tbody class="text-[11px] font-mono divide-y divide-surface-container-low/50">
+<tr class="hover:bg-surface-bright/50">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<div>
+<p class="font-bold text-on-surface leading-none mb-1">ETH ETF Approval Q1</p>
+<p class="text-[9px] text-on-surface/30">POLYMARKET</p>
+</div>
+</div>
+</td>
+<td class="px-2 py-4"><span class="text-emerald-500 font-bold">YES</span></td>
+<td class="px-2 py-4 text-right">1,250</td>
+<td class="px-2 py-4 text-right">64.2¢</td>
+<td class="px-2 py-4 text-right">72.1¢</td>
+<td class="px-2 py-4 text-right text-emerald-500">+$124.50</td>
+<td class="px-6 py-4 text-right text-on-surface/40">24d 12h</td>
+</tr>
+<tr class="hover:bg-surface-bright/50">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+<div>
+<p class="font-bold text-on-surface leading-none mb-1">UK Election Date Jul</p>
+<p class="text-[9px] text-on-surface/30">KALSHI</p>
+</div>
+</div>
+</td>
+<td class="px-2 py-4"><span class="text-rose-500 font-bold">NO</span></td>
+<td class="px-2 py-4 text-right">5,000</td>
+<td class="px-2 py-4 text-right">12.5¢</td>
+<td class="px-2 py-4 text-right">14.1¢</td>
+<td class="px-2 py-4 text-right text-rose-500">-$80.00</td>
+<td class="px-6 py-4 text-right text-on-surface/40">112d 04h</td>
+</tr>
+<tr class="hover:bg-surface-bright/50">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<div>
+<p class="font-bold text-on-surface leading-none mb-1">Solana $200 Year End</p>
+<p class="text-[9px] text-on-surface/30">POLYMARKET</p>
+</div>
+</div>
+</td>
+<td class="px-2 py-4"><span class="text-emerald-500 font-bold">YES</span></td>
+<td class="px-2 py-4 text-right">800</td>
+<td class="px-2 py-4 text-right">41.0¢</td>
+<td class="px-2 py-4 text-right">58.5¢</td>
+<td class="px-2 py-4 text-right text-emerald-500">+$140.00</td>
+<td class="px-6 py-4 text-right text-on-surface/40">5d 18h</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Bottom-Right: Model Health -->
+<section class="col-span-12 lg:col-span-4 bg-surface-container p-6 flex flex-col gap-6">
+<div class="flex justify-between items-center">
+<h3 class="text-xs font-medium uppercase tracking-wider text-on-surface/60">Model Health</h3>
+<div class="w-8 h-8 bg-surface-container-low flex items-center justify-center">
+<span class="material-symbols-outlined text-sm text-primary">analytics</span>
+</div>
+</div>
+<div class="space-y-4">
+<!-- Brier Scores -->
+<div>
+<p class="text-[10px] font-mono text-on-surface/40 mb-2 uppercase flex justify-between">
+<span>Brier Scores (Target &lt; 0.20)</span>
+<span class="text-primary-fixed-dim">AVG: 0.18</span>
+</p>
+<div class="space-y-3">
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] font-mono">
+<span>SPORTS</span>
+<span>0.14</span>
+</div>
+<div class="h-1 bg-surface-container-low relative">
+<div class="absolute left-0 top-0 bottom-0 bg-emerald-500 w-[70%]"></div>
+<div class="absolute left-[80%] top-0 bottom-0 w-[1px] bg-primary/40"></div> <!-- Target Line -->
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[9px] font-mono">
+<span>POLITICS</span>
+<span>0.19</span>
+</div>
+<div class="h-1 bg-surface-container-low relative">
+<div class="absolute left-0 top-0 bottom-0 bg-amber-500 w-[95%]"></div>
+<div class="absolute left-[80%] top-0 bottom-0 w-[1px] bg-primary/40"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Source Health -->
+<div class="bg-surface-container-low p-4">
+<p class="text-[10px] uppercase text-on-surface/40 mb-3 tracking-widest">Feed Status</p>
+<div class="grid grid-cols-2 gap-3">
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<span class="text-[10px] font-mono">POLYMARKET_WS</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<span class="text-[10px] font-mono">KALSHI_API_V2</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+<span class="text-[10px] font-mono">NEWS_SENT_LLM</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<span class="text-[10px] font-mono">HIST_VAL_ENGINE</span>
+</div>
+</div>
+</div>
+<!-- Ratio Badge -->
+<div class="flex items-center justify-between mt-2">
+<div class="text-center flex-1 border-r border-surface-container-high">
+<p class="text-[10px] text-on-surface/40 uppercase">Backtest R²</p>
+<p class="text-sm font-mono font-bold">0.92</p>
+</div>
+<div class="text-center flex-1">
+<p class="text-[10px] text-on-surface/40 uppercase">Live Var</p>
+<p class="text-sm font-mono font-bold text-emerald-500">-1.2%</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Contextual FAB (Hidden as per rules on Details/Settings, but shown on Dashboard) -->
+<div class="fixed bottom-8 right-8 z-50">
+<button class="w-14 h-14 bg-primary-container text-on-primary-container flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">add</span>
+</button>
+</div>
+</body></html>

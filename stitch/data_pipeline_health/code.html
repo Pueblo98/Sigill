@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SIGIL TERMINAL — Data Pipeline Health</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-container": "#47464c",
+                        "surface-dim": "#131315",
+                        "surface-variant": "#353437",
+                        "secondary-fixed": "#e4e1e8",
+                        "inverse-primary": "#732ee4",
+                        "on-surface-variant": "#ccc3d8",
+                        "primary-container": "#7c3aed",
+                        "on-tertiary-fixed": "#301400",
+                        "surface-container-high": "#2a2a2c",
+                        "tertiary-fixed": "#ffdcc6",
+                        "outline-variant": "#4a4455",
+                        "on-surface": "#e5e1e4",
+                        "surface-tint": "#d2bbff",
+                        "on-primary-fixed": "#25005a",
+                        "primary-fixed": "#eaddff",
+                        "background": "#131315",
+                        "primary-fixed-dim": "#d2bbff",
+                        "on-primary-container": "#ede0ff",
+                        "on-secondary-fixed-variant": "#47464c",
+                        "on-secondary-container": "#b6b4bb",
+                        "on-tertiary": "#4f2500",
+                        "surface-bright": "#39393b",
+                        "outline": "#958da1",
+                        "on-secondary": "#303035",
+                        "surface-container-highest": "#353437",
+                        "surface-container": "#201f21",
+                        "error-container": "#93000a",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#c8c5cc",
+                        "error": "#ffb4ab",
+                        "surface-container-low": "#1b1b1d",
+                        "surface-container-lowest": "#0e0e10",
+                        "tertiary": "#ffb784",
+                        "on-primary-fixed-variant": "#5a00c6",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#1b1b20",
+                        "secondary": "#c8c5cc",
+                        "on-background": "#e5e1e4",
+                        "tertiary-fixed-dim": "#ffb784",
+                        "on-primary": "#3f008e",
+                        "inverse-surface": "#e5e1e4",
+                        "tertiary-container": "#a15100",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "surface": "#131315",
+                        "inverse-on-surface": "#313032",
+                        "primary": "#d2bbff",
+                        "on-tertiary-container": "#ffe0cd"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0px",
+                        "lg": "0px",
+                        "xl": "0px",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #0e0e10;
+            color: #e5e1e4;
+            font-family: 'Inter', sans-serif;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0e0e10; }
+        ::-webkit-scrollbar-thumb { background: #39393b; }
+    </style>
+</head>
+<body class="flex min-h-screen">
+<!-- SideNavBar Component -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-[#1b1b1d] flex flex-col py-6 border-r border-[#201f21] z-50">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container text-lg">terminal</span>
+</div>
+<div>
+<h1 class="text-sm font-black tracking-widest uppercase text-on-surface">TERMINAL</h1>
+<p class="text-[10px] font-mono text-on-surface/40 leading-none">v2.4.0-STABLE</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-xs font-medium text-[#e5e1e4]/60 hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-4 text-lg">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center px-6 py-3 text-xs font-medium text-[#e5e1e4]/60 hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-4 text-lg">analytics</span>
+                Markets
+            </a>
+<a class="flex items-center px-6 py-3 text-xs font-medium text-[#e5e1e4]/60 hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-4 text-lg">receipt_long</span>
+                Trade Detail
+            </a>
+<a class="flex items-center px-6 py-3 text-xs font-medium text-[#e5e1e4]/60 hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-4 text-lg">history_edu</span>
+                Execution Log
+            </a>
+<a class="flex items-center px-6 py-3 text-xs font-medium text-[#e5e1e4]/60 hover:bg-[#39393b] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-4 text-lg">hub</span>
+                Models
+            </a>
+<a class="flex items-center px-6 py-3 text-xs font-bold border-l-4 border-[#7C3AED] bg-[#201f21] text-[#e5e1e4]" href="#">
+<span class="material-symbols-outlined mr-4 text-lg">monitor_heart</span>
+                Data Health
+            </a>
+</nav>
+<div class="px-6 mt-auto">
+<button class="w-full bg-primary-container text-on-primary-container py-3 text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity">
+                New Trade
+            </button>
+<div class="mt-6 flex items-center gap-3">
+<img alt="User Profile" class="w-8 h-8 object-cover" data-alt="Close-up portrait of a professional man in a tech office environment with soft bokeh background lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXbBV_fv9MpV9VjoE0O62XkZsdo0kGe9CRS_LY-TZy3sJHnpSDM9P6rQILTgw4xEOlgHB0UBCfP57gBXV719779_ig7XBsyhWYo9B19aQjVF98dJu2o8QV3zN9JSAjt5_7ExQQhoYMMC9m9dZOXVXIhXWYtxH7kHf2b_HU--COmoPXYA8cpU2ARJkIxqFG8NzshKqTMJsHps0HU81ndCRBZLcH6hlsPYuGgY5O09mgz9B2M62NFr3SiiMpmXWSKGe9y_1EHb_2pz8"/>
+<div class="overflow-hidden">
+<p class="text-[10px] font-bold text-on-surface truncate">OPERATOR_042</p>
+<p class="text-[9px] font-mono text-on-surface/40">LEVEL_4_AUTH</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 ml-64 min-h-screen bg-surface-container-lowest flex flex-col">
+<!-- TopAppBar Component -->
+<header class="h-14 bg-[#0e0e10] border-b border-[#1b1b1d] flex justify-between items-center px-8 sticky top-0 z-40">
+<div class="flex items-center gap-6">
+<span class="text-xl font-black tracking-tighter text-[#7C3AED]">SIGIL</span>
+<div class="h-4 w-[1px] bg-[#2a2a2c]"></div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-medium uppercase tracking-widest text-[#e5e1e4]/60">System Status:</span>
+<span class="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500">
+<span class="w-1.5 h-1.5 bg-emerald-500 animate-pulse"></span>
+                        OPERATIONAL
+                    </span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant/20">
+<span class="material-symbols-outlined text-sm text-[#7C3AED]">sensors</span>
+<span class="text-[10px] font-bold text-on-surface">Live Mode</span>
+</div>
+<button class="p-2 hover:bg-[#39393b] text-[#e5e1e4]/60 transition-colors">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<button class="p-2 hover:bg-[#39393b] text-[#e5e1e4]/60 transition-colors">
+<span class="material-symbols-outlined text-xl">person</span>
+</button>
+</div>
+</header>
+<!-- Pipeline Grid -->
+<section class="p-8">
+<div class="flex justify-between items-end mb-6">
+<div>
+<h2 class="text-2xl font-black tracking-tight text-on-surface">DATA PIPELINE HEALTH</h2>
+<p class="text-xs text-on-surface/50 font-mono">LATENCY_THRESHOLD: 250MS | TOTAL_SOURCES: 12</p>
+</div>
+<div class="flex gap-2">
+<button class="px-4 py-2 bg-surface-container border border-outline-variant/20 text-[10px] font-bold hover:bg-surface-bright transition-colors">REBOOT ALL</button>
+<button class="px-4 py-2 bg-primary-container text-on-primary-container text-[10px] font-bold hover:opacity-90 transition-opacity">EXPORT LOGS</button>
+</div>
+</div>
+<!-- Grid of Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+<!-- ESPN API Card -->
+<div class="bg-[#201f21] p-4 flex flex-col gap-4 border border-transparent hover:border-primary/20 transition-all group">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-primary/80">SPORTS_VERT</p>
+<h3 class="text-lg font-black tracking-tight">ESPN API</h3>
+</div>
+<div class="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5">
+<span class="w-1.5 h-1.5 bg-emerald-500"></span>
+<span class="text-[9px] font-bold text-emerald-500 uppercase">Healthy</span>
+</div>
+</div>
+<div class="h-10 flex items-end gap-0.5">
+<div class="flex-1 bg-emerald-500/20 h-4"></div>
+<div class="flex-1 bg-emerald-500/20 h-6"></div>
+<div class="flex-1 bg-emerald-500/20 h-5"></div>
+<div class="flex-1 bg-emerald-500/20 h-7"></div>
+<div class="flex-1 bg-emerald-500/20 h-4"></div>
+<div class="flex-1 bg-emerald-500/20 h-3"></div>
+<div class="flex-1 bg-emerald-500/20 h-8"></div>
+<div class="flex-1 bg-emerald-500/40 h-10 border-t border-emerald-500"></div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-auto">
+<div>
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Records Today</p>
+<p class="text-sm font-mono font-bold">142,891</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Last Fetch</p>
+<p class="text-sm font-mono font-bold">14:02:11</p>
+</div>
+</div>
+</div>
+<!-- The Odds API Card -->
+<div class="bg-[#201f21] p-4 flex flex-col gap-4 border border-transparent hover:border-primary/20 transition-all group">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-primary/80">FINANCE_VERT</p>
+<h3 class="text-lg font-black tracking-tight">The Odds API</h3>
+</div>
+<div class="flex items-center gap-1.5 bg-yellow-500/10 px-2 py-0.5">
+<span class="w-1.5 h-1.5 bg-yellow-500"></span>
+<span class="text-[9px] font-bold text-yellow-500 uppercase">Degraded</span>
+</div>
+</div>
+<div class="h-10 flex items-end gap-0.5">
+<div class="flex-1 bg-yellow-500/20 h-4"></div>
+<div class="flex-1 bg-yellow-500/20 h-9"></div>
+<div class="flex-1 bg-rose-500/40 h-10 border-t border-rose-500"></div>
+<div class="flex-1 bg-yellow-500/20 h-7"></div>
+<div class="flex-1 bg-yellow-500/20 h-8"></div>
+<div class="flex-1 bg-yellow-500/20 h-6"></div>
+<div class="flex-1 bg-yellow-500/20 h-5"></div>
+<div class="flex-1 bg-yellow-500/40 h-6 border-t border-yellow-500"></div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-auto">
+<div>
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Records Today</p>
+<p class="text-sm font-mono font-bold">884,102</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Last Fetch</p>
+<p class="text-sm font-mono font-bold">13:58:44</p>
+</div>
+</div>
+</div>
+<!-- FRED Card -->
+<div class="bg-[#201f21] p-4 flex flex-col gap-4 border border-transparent hover:border-primary/20 transition-all group">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-primary/80">MACRO_VERT</p>
+<h3 class="text-lg font-black tracking-tight">FRED</h3>
+</div>
+<div class="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5">
+<span class="w-1.5 h-1.5 bg-emerald-500"></span>
+<span class="text-[9px] font-bold text-emerald-500 uppercase">Healthy</span>
+</div>
+</div>
+<div class="h-10 flex items-end gap-0.5">
+<div class="flex-1 bg-emerald-500/20 h-2"></div>
+<div class="flex-1 bg-emerald-500/20 h-3"></div>
+<div class="flex-1 bg-emerald-500/20 h-2"></div>
+<div class="flex-1 bg-emerald-500/20 h-2"></div>
+<div class="flex-1 bg-emerald-500/20 h-3"></div>
+<div class="flex-1 bg-emerald-500/20 h-4"></div>
+<div class="flex-1 bg-emerald-500/20 h-2"></div>
+<div class="flex-1 bg-emerald-500/40 h-3 border-t border-emerald-500"></div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-auto">
+<div>
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Records Today</p>
+<p class="text-sm font-mono font-bold">12,042</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Last Fetch</p>
+<p class="text-sm font-mono font-bold">14:00:00</p>
+</div>
+</div>
+</div>
+<!-- Metaculus Card -->
+<div class="bg-[#201f21] p-4 flex flex-col gap-4 border border-transparent hover:border-primary/20 transition-all group">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-primary/80">PRED_VERT</p>
+<h3 class="text-lg font-black tracking-tight">Metaculus</h3>
+</div>
+<div class="flex items-center gap-1.5 bg-rose-500/10 px-2 py-0.5">
+<span class="w-1.5 h-1.5 bg-rose-500"></span>
+<span class="text-[9px] font-bold text-rose-500 uppercase">Failing</span>
+</div>
+</div>
+<div class="h-10 flex items-end gap-0.5">
+<div class="flex-1 bg-rose-500/20 h-10 border-t border-rose-500"></div>
+<div class="flex-1 bg-rose-500/20 h-10 border-t border-rose-500"></div>
+<div class="flex-1 bg-rose-500/20 h-10 border-t border-rose-500"></div>
+<div class="flex-1 bg-rose-500/20 h-10 border-t border-rose-500"></div>
+<div class="flex-1 bg-rose-500/20 h-10 border-t border-rose-500"></div>
+<div class="flex-1 bg-rose-500/20 h-10 border-t border-rose-500"></div>
+<div class="flex-1 bg-rose-500/20 h-10 border-t border-rose-500"></div>
+<div class="flex-1 bg-rose-500/40 h-10 border-t border-rose-500"></div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-auto">
+<div>
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Records Today</p>
+<p class="text-sm font-mono font-bold text-rose-500">0</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Last Fetch</p>
+<p class="text-sm font-mono font-bold text-rose-500">--:--:--</p>
+</div>
+</div>
+</div>
+<!-- CoinGecko Card -->
+<div class="bg-[#201f21] p-4 flex flex-col gap-4 border border-transparent hover:border-primary/20 transition-all group">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-primary/80">CRYPTO_VERT</p>
+<h3 class="text-lg font-black tracking-tight">CoinGecko</h3>
+</div>
+<div class="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5">
+<span class="w-1.5 h-1.5 bg-emerald-500"></span>
+<span class="text-[9px] font-bold text-emerald-500 uppercase">Healthy</span>
+</div>
+</div>
+<div class="h-10 flex items-end gap-0.5">
+<div class="flex-1 bg-emerald-500/20 h-3"></div>
+<div class="flex-1 bg-emerald-500/20 h-4"></div>
+<div class="flex-1 bg-emerald-500/20 h-3"></div>
+<div class="flex-1 bg-emerald-500/20 h-5"></div>
+<div class="flex-1 bg-emerald-500/20 h-6"></div>
+<div class="flex-1 bg-emerald-500/20 h-5"></div>
+<div class="flex-1 bg-emerald-500/20 h-4"></div>
+<div class="flex-1 bg-emerald-500/40 h-3 border-t border-emerald-500"></div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-auto">
+<div>
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Records Today</p>
+<p class="text-sm font-mono font-bold">2,110,845</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Last Fetch</p>
+<p class="text-sm font-mono font-bold">14:02:59</p>
+</div>
+</div>
+</div>
+<!-- Polymarket Card -->
+<div class="bg-[#201f21] p-4 flex flex-col gap-4 border border-transparent hover:border-primary/20 transition-all group">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-primary/80">PRED_VERT</p>
+<h3 class="text-lg font-black tracking-tight">Polymarket</h3>
+</div>
+<div class="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5">
+<span class="w-1.5 h-1.5 bg-emerald-500"></span>
+<span class="text-[9px] font-bold text-emerald-500 uppercase">Healthy</span>
+</div>
+</div>
+<div class="h-10 flex items-end gap-0.5">
+<div class="flex-1 bg-emerald-500/20 h-6"></div>
+<div class="flex-1 bg-emerald-500/20 h-5"></div>
+<div class="flex-1 bg-emerald-500/20 h-7"></div>
+<div class="flex-1 bg-emerald-500/20 h-6"></div>
+<div class="flex-1 bg-emerald-500/20 h-8"></div>
+<div class="flex-1 bg-emerald-500/20 h-6"></div>
+<div class="flex-1 bg-emerald-500/20 h-7"></div>
+<div class="flex-1 bg-emerald-500/40 h-6 border-t border-emerald-500"></div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-auto">
+<div>
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Records Today</p>
+<p class="text-sm font-mono font-bold">459,211</p>
+</div>
+<div class="text-right">
+<p class="text-[9px] font-mono text-on-surface/40 uppercase">Last Fetch</p>
+<p class="text-sm font-mono font-bold">14:01:30</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Anomaly Alerts Section -->
+<section class="mt-auto p-8 pt-0">
+<div class="bg-[#1b1b1d] p-6 border-t-2 border-[#7C3AED]">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-sm font-black tracking-widest uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-rose-500">warning</span>
+                        Anomaly Alerts
+                    </h3>
+<div class="flex gap-4">
+<span class="text-[10px] font-mono text-on-surface/40">3 TOTAL FLAG(S)</span>
+</div>
+</div>
+<div class="space-y-2">
+<!-- Alert 1 -->
+<div class="bg-surface-container flex items-center justify-between p-3 border-l-2 border-rose-500 hover:bg-surface-bright transition-colors">
+<div class="flex items-center gap-6">
+<div class="bg-rose-500/10 px-2 py-1">
+<span class="text-[10px] font-mono font-bold text-rose-500">&gt;3σ OUTLIER</span>
+</div>
+<div>
+<p class="text-xs font-bold">ETH/BTC Spread Anomaly</p>
+<p class="text-[10px] font-mono text-on-surface/40">Source: CoinGecko | Value: 0.0842 (Expected: 0.0410)</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-rose-500/20 text-rose-500 text-[10px] font-bold uppercase hover:bg-rose-500 hover:text-white transition-colors">Investigate</button>
+<button class="px-3 py-1 text-on-surface/40 text-[10px] font-bold uppercase hover:text-on-surface transition-colors">Dismiss</button>
+</div>
+</div>
+<!-- Alert 2 -->
+<div class="bg-surface-container flex items-center justify-between p-3 border-l-2 border-yellow-500 hover:bg-surface-bright transition-colors">
+<div class="flex items-center gap-6">
+<div class="bg-yellow-500/10 px-2 py-1">
+<span class="text-[10px] font-mono font-bold text-yellow-500">CROSS_PLATFORM</span>
+</div>
+<div>
+<p class="text-xs font-bold">Unmatched Event ID: NFL_2024_W4_KC_LAC</p>
+<p class="text-[10px] font-mono text-on-surface/40">ESPN vs The Odds API | Mapping failure detected.</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-yellow-500/20 text-yellow-500 text-[10px] font-bold uppercase hover:bg-yellow-500 hover:text-black transition-colors">Resolve</button>
+<button class="px-3 py-1 text-on-surface/40 text-[10px] font-bold uppercase hover:text-on-surface transition-colors">Dismiss</button>
+</div>
+</div>
+<!-- Alert 3 -->
+<div class="bg-surface-container flex items-center justify-between p-3 border-l-2 border-primary hover:bg-surface-bright transition-colors">
+<div class="flex items-center gap-6">
+<div class="bg-primary/10 px-2 py-1">
+<span class="text-[10px] font-mono font-bold text-primary">MODEL_DRIFT</span>
+</div>
+<div>
+<p class="text-xs font-bold">Alpha_Gen_v4 Entropy Spike</p>
+<p class="text-[10px] font-mono text-on-surface/40">Confidence interval widened &gt;12% in past 15 min.</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-primary/20 text-primary text-[10px] font-bold uppercase hover:bg-primary hover:text-white transition-colors">Retrain</button>
+<button class="px-3 py-1 text-on-surface/40 text-[10px] font-bold uppercase hover:text-on-surface transition-colors">Dismiss</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Visual Anchor Decorations -->
+<div class="fixed bottom-4 right-4 z-50 pointer-events-none">
+<div class="bg-primary-container/10 border border-primary/20 backdrop-blur-md p-2 flex items-center gap-3">
+<div class="w-2 h-2 bg-primary animate-pulse"></div>
+<span class="text-[10px] font-mono text-primary/80 uppercase tracking-widest">Pipeline Heartbeat Active</span>
+</div>
+</div>
+</body></html>
