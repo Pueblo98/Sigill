@@ -32,21 +32,11 @@ _DEFAULT_THEME = Theme(
     negative="#ef4444",
 )
 
-_active_theme: Theme = _DEFAULT_THEME
 
-
-def set_theme(theme: Theme) -> None:
-    """Override the module-level theme used by the chart helpers.
-
-    F3's loader will call this once on dashboard startup with the YAML
-    theme. Tests typically leave the default in place.
-    """
-    global _active_theme
-    _active_theme = theme
-
-
-def _current_theme() -> Theme:
-    return _active_theme
+def _resolve_theme(theme: Optional[Theme]) -> Theme:
+    """Per-call theme resolution. Widgets pass `self.theme` from the loader;
+    direct callers (tests, ad-hoc scripts) get the default."""
+    return theme if theme is not None else _DEFAULT_THEME
 
 
 def _figure_to_svg(fig: "plt.Figure") -> str:
@@ -92,13 +82,19 @@ def _strip_attr(svg: str, attr: str) -> str:
     return head + rest
 
 
-def _empty_svg(width: int, height: int, message: str = "no data") -> str:
+def _empty_svg(
+    width: int,
+    height: int,
+    message: str = "no data",
+    *,
+    theme: Optional[Theme] = None,
+) -> str:
     """Tiny placeholder SVG used when a chart has no data to plot.
 
     Keeps the layout stable instead of yanking an entire widget out when a
     metric series is empty.
     """
-    theme = _current_theme()
+    theme = _resolve_theme(theme)
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="0 0 {width} {height}" '
@@ -126,9 +122,9 @@ def render_calibration_curve_svg(
     if len(predicted) != len(observed):
         raise ValueError("predicted and observed must have equal length")
     if not predicted:
-        return _empty_svg(200, 200, "no calibration data")
+        return _empty_svg(200, 200, "no calibration data", theme=theme)
 
-    t = theme or _current_theme()
+    t = _resolve_theme(theme)
     fig, ax = plt.subplots(figsize=(2.0, 2.0), dpi=100)
     ax.set_facecolor(t.surface)
     fig.patch.set_facecolor(t.background)
@@ -170,9 +166,9 @@ def render_roi_curve_svg(
     timestamp so the chart is robust to sparse/uneven series.
     """
     if not equity_curve:
-        return _empty_svg(400, 150, "no equity points")
+        return _empty_svg(400, 150, "no equity points", theme=theme)
 
-    t = theme or _current_theme()
+    t = _resolve_theme(theme)
     ys = [float(eq) for _, eq in equity_curve]
     xs = list(range(len(ys)))
 
@@ -208,9 +204,9 @@ def render_brier_sparkline_svg(
     produces the placeholder SVG.
     """
     if not daily_briers:
-        return _empty_svg(400, 100, "no brier history")
+        return _empty_svg(400, 100, "no brier history", theme=theme)
 
-    t = theme or _current_theme()
+    t = _resolve_theme(theme)
     ys = [float(b) for b in daily_briers]
     xs = list(range(len(ys)))
 

@@ -75,16 +75,16 @@ def test_brier_sparkline_empty_returns_placeholder():
     assert "no brier history" in svg
 
 
-def test_set_theme_overrides_default(theme):
-    charts.set_theme(theme)
-    try:
-        # When no explicit theme is passed, the configured theme should drive colors.
-        svg = charts.render_calibration_curve_svg([], [])
-        # Empty -> placeholder; placeholder uses theme.surface for the background rect.
-        assert theme.surface in svg
-    finally:
-        # Reset to default so other tests aren't affected.
-        charts.set_theme(charts._DEFAULT_THEME)
+def test_explicit_theme_drives_colors(theme):
+    """Per-call theme: passing `theme=` to a chart helper drives the
+    rendered colors. Default theme is used when None is passed."""
+    svg = charts.render_calibration_curve_svg([], [], theme=theme)
+    assert theme.surface in svg
+
+
+def test_default_theme_used_when_none_passed():
+    svg = charts.render_calibration_curve_svg([], [], theme=None)
+    assert charts._DEFAULT_THEME.surface in svg
 
 
 def test_svg_strips_explicit_dimensions(theme):

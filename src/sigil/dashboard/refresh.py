@@ -114,7 +114,11 @@ class RefreshOrchestrator:
                 # don't crash the tick.
                 raise
             else:
-                self._cache.set((widget.type, widget.cache_key()), data)
+                self._cache.set(
+                    (widget.type, widget.cache_key()),
+                    data,
+                    ttl=widget.cache_ttl,
+                )
                 widget.mark_success(now=now)
 
 

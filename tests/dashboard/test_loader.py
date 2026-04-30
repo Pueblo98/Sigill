@@ -158,6 +158,21 @@ def test_interpolate_no_vars_passthrough():
     assert interpolate("plain string $not_a_var") == "plain string $not_a_var"
 
 
+def test_loader_injects_theme_onto_every_widget(tmp_path: Path):
+    """TODO-6: every widget instance should carry the dashboard theme so
+    chart widgets can pull `self.theme.accent` / etc. without a module-level
+    global."""
+    p = tmp_path / "dashboard.yaml"
+    p.write_text(_EXAMPLE_YAML, encoding="utf-8")
+    cfg = load_dashboard(p)
+    widgets = build_widget_instances(cfg)
+    assert widgets, "example YAML should yield widgets"
+    for w in widgets:
+        assert w.theme is cfg.theme, (
+            f"{w.type} did not receive the dashboard theme"
+        )
+
+
 def test_load_with_env_var(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("SIGIL_PAGE_NAME", "command-center")
     yaml_text = """

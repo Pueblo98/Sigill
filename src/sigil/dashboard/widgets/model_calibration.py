@@ -101,7 +101,7 @@ class ModelCalibrationWidget(WidgetBase):
             probs = [o.predicted_prob for o in outcomes]
             outs = [o.outcome for o in outcomes]
             mean_pred, observed = calibration_curve(probs, outs, n_bins=self._n_bins)
-            svg = render_calibration_curve_svg(mean_pred, observed)
+            svg = render_calibration_curve_svg(mean_pred, observed, theme=self.theme)
             out.append(
                 CalibrationModelView(
                     model_id=model_id,

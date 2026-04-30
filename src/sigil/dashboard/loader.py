@@ -31,10 +31,15 @@ def build_widget_instances(config: DashboardConfig) -> List[WidgetBase]:
     Validates the widget-specific config via the widget's `config_model` —
     catches typos like a `limit:` value passed to a widget that doesn't take
     one. Unknown widget types raise so the operator notices immediately.
+
+    Injects the dashboard theme onto every instance so chart widgets can
+    pull theme colors from `self.theme` without a module-level global.
     """
     instances: List[WidgetBase] = []
     for page in config.pages:
         instances.extend(_instantiate_page(page))
+    for instance in instances:
+        instance.set_theme(config.theme)
     return instances
 
 

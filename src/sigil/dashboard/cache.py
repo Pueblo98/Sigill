@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import timedelta
 from threading import RLock
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from cachetools import TTLCache
 
@@ -64,46 +64,84 @@ class CacheEntry:
 
 
 class WidgetCache:
-    """Per-key TTL cache for widget render data.
+    """Per-widget-type TTL cache for widget render data.
 
     Keys are `(widget_type, cache_key)` tuples; values are arbitrary Python
-    objects (typically the result of `Widget.fetch`). The TTL is enforced at
-    the cache level (cachetools.TTLCache) and again at the widget level via
-    `requires_update`.
+    objects (typically the result of `Widget.fetch`).
 
-    Cap of 4096 entries is generous for ~12 widgets x small key cardinality;
-    the LRU eviction inside TTLCache prevents unbounded growth.
+    Each widget type gets its own underlying `TTLCache` so a 1h widget's
+    entries aren't LRU-evicted as fast as a 30s widget's entries (TODO-7).
+    The TTL is set on first write per type via `set(..., ttl=...)`; if the
+    widget's TTL changes (YAML hot reload), call `invalidate_type` to
+    force re-creation with the new TTL.
     """
 
-    def __init__(self, default_ttl: timedelta = timedelta(minutes=5), maxsize: int = 4096):
+    def __init__(
+        self,
+        default_ttl: timedelta = timedelta(minutes=5),
+        maxsize_per_type: int = 512,
+    ):
         self._lock = RLock()
         self._default_ttl_seconds = default_ttl.total_seconds()
-        # cachetools.TTLCache uses a single TTL for all entries. Per-widget TTLs
-        # are enforced by the orchestrator's `requires_update` check before it
-        # decides to refetch — this cache is the storage tier; expiry just bounds
-        # memory.
-        self._cache: TTLCache = TTLCache(maxsize=maxsize, ttl=self._default_ttl_seconds)
+        self._maxsize_per_type = maxsize_per_type
+        self._caches: Dict[str, TTLCache] = {}
+
+    def _cache_for(self, widget_type: str, ttl: Optional[timedelta]) -> TTLCache:
+        cache = self._caches.get(widget_type)
+        if cache is None:
+            ttl_seconds = ttl.total_seconds() if ttl is not None else self._default_ttl_seconds
+            cache = TTLCache(maxsize=self._maxsize_per_type, ttl=ttl_seconds)
+            self._caches[widget_type] = cache
+        return cache
 
     def get(self, key: CacheKey) -> Optional[CacheEntry]:
         with self._lock:
-            return self._cache.get(key)
+            cache = self._caches.get(key[0])
+            if cache is None:
+                return None
+            return cache.get(key)
 
-    def set(self, key: CacheKey, value: Any, *, is_error: bool = False) -> None:
+    def set(
+        self,
+        key: CacheKey,
+        value: Any,
+        *,
+        ttl: Optional[timedelta] = None,
+        is_error: bool = False,
+    ) -> None:
         with self._lock:
-            self._cache[key] = CacheEntry(value=value, is_error=is_error)
+            cache = self._cache_for(key[0], ttl)
+            cache[key] = CacheEntry(value=value, is_error=is_error)
 
     def invalidate(self, key: CacheKey) -> None:
         with self._lock:
-            self._cache.pop(key, None)
+            cache = self._caches.get(key[0])
+            if cache is not None:
+                cache.pop(key, None)
+
+    def invalidate_type(self, widget_type: str) -> None:
+        """Drop the entire per-type cache. Used on YAML hot reload when a
+        widget's `cache_ttl` changes — the next `set` re-creates the cache
+        with the new TTL."""
+        with self._lock:
+            self._caches.pop(widget_type, None)
 
     def clear(self) -> None:
         with self._lock:
-            self._cache.clear()
+            self._caches.clear()
+
+    def ttl_seconds_for(self, widget_type: str) -> Optional[float]:
+        """Inspect the TTL currently in effect for `widget_type`. Returns
+        None if no entries have been written for that type yet."""
+        with self._lock:
+            cache = self._caches.get(widget_type)
+            return cache.ttl if cache is not None else None
 
     def __len__(self) -> int:
         with self._lock:
-            return len(self._cache)
+            return sum(len(c) for c in self._caches.values())
 
     def __contains__(self, key: CacheKey) -> bool:
         with self._lock:
-            return key in self._cache
+            cache = self._caches.get(key[0])
+            return cache is not None and key in cache

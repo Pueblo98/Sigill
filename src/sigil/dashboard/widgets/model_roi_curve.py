@@ -108,7 +108,7 @@ class ModelRoiCurveWidget(WidgetBase):
                 running += float(pos.realized_pnl or 0.0)
                 ts = pos.closed_at or pos.opened_at
                 points.append((ts, running))
-            svg = render_roi_curve_svg(points)
+            svg = render_roi_curve_svg(points, theme=self.theme)
             out.append(
                 ModelEquityCurve(
                     model_id=model_id,

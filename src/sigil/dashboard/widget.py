@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Protocol, Type, runtime_
 from markupsafe import Markup, escape
 
 from sigil.dashboard.cache import parse_ttl
-from sigil.dashboard.config import WidgetConfig
+from sigil.dashboard.config import Theme, WidgetConfig
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,18 @@ class WidgetBase:
         # Step index into BACKOFF_INTERVALS_MINUTES. -1 means no error active.
         self._backoff_step: int = -1
         self._last_error: Optional[BaseException] = None
+        # Theme is set by the loader at startup so chart widgets can pull
+        # accent / positive / negative colors from `self.theme` without a
+        # module-level global. None until the loader injects.
+        self.theme: Optional[Theme] = None
+
+    def set_theme(self, theme: Theme) -> None:
+        """Loader hook: inject the dashboard theme onto the widget instance.
+
+        Widgets that render charts should pass `self.theme` to the chart
+        helpers; widgets without color-coded output can ignore it.
+        """
+        self.theme = theme
 
     # ------------------------------------------------------------------
     # Identification
