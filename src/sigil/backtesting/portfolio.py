@@ -3,6 +3,12 @@
 Tracks cash, open positions, realized PnL, and computes mark-to-market equity
 on demand. All math is in float dollars; binary contracts settle at $1 (yes
 wins) or $0 (no wins).
+
+Scope (REVIEW-DECISIONS 3C / W2.2(f)): this is an **in-memory backtest-only**
+ledger. It does NOT read from or write to the `Position` ORM table. Live and
+paper-trading positions are owned by `sigil.execution.oms.OMS`, which is the
+single writer of the `positions` table. Keeping these abstractions split
+prevents backtest replays from polluting production state.
 """
 
 from __future__ import annotations

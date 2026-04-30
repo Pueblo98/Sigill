@@ -17,6 +17,9 @@ class Config(BaseModel):
 
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHAT_ID: Optional[str] = None
+    TELEGRAM_CHAT_CRITICAL: Optional[str] = None
+    TELEGRAM_CHAT_WARNING: Optional[str] = None
+    TELEGRAM_CHAT_INFO: Optional[str] = None
 
     KELLY_FRACTION: float = 0.25
     MIN_EDGE_KALSHI: float = 0.10

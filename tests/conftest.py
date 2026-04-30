@@ -1,7 +1,8 @@
 """Shared pytest fixtures.
 
-In-memory SQLite per test for isolation. We import `sigil.models` so that
-`Base.metadata.create_all` builds the full schema. SQLite check_same_thread
+In-memory SQLite per test for isolation. Sigil modules are imported lazily
+inside fixtures so that an import failure in (e.g.) `sigil.ingestion.runner`
+doesn't break collection of unrelated test directories. SQLite check_same_thread
 is OK here — pytest-asyncio runs each test on a single event loop.
 """
 from __future__ import annotations
@@ -15,12 +16,6 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-import sigil.db as sigil_db
-from sigil.db import Base
-import sigil.models as models  # noqa: F401  (registers tables on Base.metadata)
-from sigil.execution import reconciliation as recon
-from sigil.ingestion import runner as runner_module
-
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -31,6 +26,9 @@ def event_loop():
 
 @pytest_asyncio.fixture
 async def engine():
+    from sigil.db import Base
+    import sigil.models  # noqa: F401  (registers tables on Base.metadata)
+
     eng = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False, future=True)
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -40,10 +38,10 @@ async def engine():
 
 @pytest_asyncio.fixture
 async def session_factory(engine):
+    import sigil.db as sigil_db
+
     factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
-    # Re-bind sigil.db globals so app code that reaches for `AsyncSessionLocal`
-    # / `get_session` lands on the in-memory schema for the duration of the test.
     saved_engine = sigil_db.engine
     saved_factory = sigil_db.AsyncSessionLocal
     sigil_db.engine = engine
@@ -63,15 +61,32 @@ async def session(session_factory) -> AsyncIterator[AsyncSession]:
 
 @pytest.fixture(autouse=True)
 def _reset_global_state():
-    recon.reset_freeze_state()
-    runner_module.reset_source_state()
+    # Lazy imports: a syntax error in either module should not block collection
+    # of test directories that don't touch reconciliation / ingestion runner.
+    try:
+        from sigil.execution import reconciliation as recon
+    except Exception:
+        recon = None
+    try:
+        from sigil.ingestion import runner as runner_module
+    except Exception:
+        runner_module = None
+
+    if recon is not None:
+        recon.reset_freeze_state()
+    if runner_module is not None:
+        runner_module.reset_source_state()
     yield
-    recon.reset_freeze_state()
-    runner_module.reset_source_state()
+    if recon is not None:
+        recon.reset_freeze_state()
+    if runner_module is not None:
+        runner_module.reset_source_state()
 
 
 @pytest_asyncio.fixture
-async def sample_market(session) -> models.Market:
+async def sample_market(session):
+    import sigil.models as models
+
     market = models.Market(
         id=uuid4(),
         platform="kalshi",
@@ -87,7 +102,9 @@ async def sample_market(session) -> models.Market:
 
 
 @pytest_asyncio.fixture
-async def sample_bankroll(session) -> models.BankrollSnapshot:
+async def sample_bankroll(session):
+    import sigil.models as models
+
     snap = models.BankrollSnapshot(
         time=datetime.now(timezone.utc),
         mode="paper",
@@ -103,7 +120,9 @@ async def sample_bankroll(session) -> models.BankrollSnapshot:
 
 
 @pytest_asyncio.fixture
-async def sample_position(session, sample_market) -> models.Position:
+async def sample_position(session, sample_market):
+    import sigil.models as models
+
     pos = models.Position(
         id=uuid4(),
         platform="kalshi",

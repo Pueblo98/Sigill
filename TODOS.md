@@ -58,6 +58,38 @@ Captured from /plan-eng-review on 2026-04-30. Each entry has the context a futur
 
 ---
 
+## TODO-4: OMS does not open a Position row on paper-fill
+
+**What:** When `OMS.submit()` short-circuits to FILLED in paper mode, it
+updates the `Order` row but never inserts/updates a `Position` row. The
+smoke script (`scripts/smoke_paper_flow.py`) has to mirror a Position by
+hand for settlement to have something to close.
+
+**Why:** Settlement handler, reconciliation, and the drawdown bankroll
+snapshot all read from `Position`. Without OMS writing it, a green order
+flow can't progress to a green close-out without manual SQL.
+
+**Where to fix:** `src/sigil/execution/oms.py` — after `_simulate_paper_fill`
+returns, upsert a `Position` keyed on (platform, market_id, outcome, mode).
+Same logic should run on live fills too (currently no live-fill code path
+opens positions either; reconciliation backfills them on the periodic
+sweep, which is later than ideal).
+
+**Discovered:** Wave 2 W2.4 smoke test, 2026-04-30.
+
+---
+
+## TODO-5: Settlement subscriber not wired into main.py
+
+**What:** `run_ws_subscriber()` is implemented, tested end-to-end, and
+ready, but `src/sigil/main.py` only runs `MarketManager.sync_source()` +
+the bankroll snapshot job. A second `asyncio.create_task` is needed for
+the WS settlement loop, plus the hourly polling fallback.
+
+**Discovered:** Wave 2 W2.4, 2026-04-30.
+
+---
+
 ## Decisions deferred but logged (not actioned)
 
 - **15-25% monthly ROI target:** held as PRD-stated; reviewer flagged as fantasy but user chose hold-scope.

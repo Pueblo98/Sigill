@@ -7,11 +7,65 @@ Hand-checked formulas. Critical-path code (REVIEW-DECISIONS.md 3B item 10).
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence
 
 if TYPE_CHECKING:  # pragma: no cover
     from sigil.backtesting.engine import BacktestResult, Trade
+
+
+@dataclass
+class PredictionOutcome:
+    """Adapter shape consumed by `all_metrics(predictions=...)`.
+
+    The Lane B `Prediction` ORM row carries `predicted_prob` directly, but the
+    realized outcome lives on `Market.settlement_value`. Use
+    `prediction_outcomes_from_orm` to convert ORM rows into this shape, or
+    build them directly in tests.
+    """
+
+    predicted_prob: float
+    outcome: int  # 0 or 1
+
+
+def prediction_outcomes_from_orm(
+    predictions: Iterable[Any],
+    markets_by_id: Optional[dict] = None,
+    *,
+    yes_threshold: float = 0.5,
+) -> list[PredictionOutcome]:
+    """W2.2(g): zip ORM `Prediction` rows with `Market.settlement_value`.
+
+    `predictions` is any iterable of objects with `predicted_prob` and
+    `market_id` attributes.
+
+    `markets_by_id` is `{market_id: Market}`; if a Prediction's market is
+    absent or unsettled, that prediction is dropped (you can't score an
+    unsettled forecast).
+
+    For binary contracts, `settlement_value` of 1.0 / 0.0 maps directly. For
+    fractional settlements (rare), threshold at 0.5 unless overridden.
+    """
+    out: list[PredictionOutcome] = []
+    by_id = markets_by_id or {}
+    for p in predictions:
+        market = by_id.get(getattr(p, "market_id", None))
+        if market is None:
+            market = getattr(p, "market", None)
+        if market is None:
+            continue
+        sv = getattr(market, "settlement_value", None)
+        if sv is None:
+            continue
+        outcome = 1 if float(sv) >= yes_threshold else 0
+        out.append(
+            PredictionOutcome(
+                predicted_prob=float(p.predicted_prob),
+                outcome=outcome,
+            )
+        )
+    return out
 
 
 _LOG_EPS = 1e-15
