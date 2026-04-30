@@ -197,3 +197,41 @@ class BankrollSnapshot(Base):
     __table_args__ = (
         CheckConstraint("mode IN ('paper', 'live')", name="ck_bankroll_mode"),
     )
+
+
+class BacktestResult(Base):
+    """Persisted summary of one Backtester.run() result.
+
+    Lights up the F2 `backtest_results` dashboard widget. The widget queries
+    this table by `created_at DESC LIMIT 1` and degrades to an empty state
+    if the table is missing — so adding rows here is fully optional.
+
+    Column shape mirrors the widget's documented expectations
+    (src/sigil/dashboard/widgets/backtest_results.py); add columns here
+    rather than renaming so the widget keeps rendering older rows.
+    """
+
+    __tablename__ = "backtest_results"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    name: Mapped[Optional[str]] = mapped_column(String)
+    model_id: Mapped[Optional[str]] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    config_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    initial_capital: Mapped[float] = mapped_column(Numeric, nullable=False)
+    final_equity: Mapped[float] = mapped_column(Numeric, nullable=False)
+    roi: Mapped[float] = mapped_column(Numeric, nullable=False)
+    sharpe: Mapped[Optional[float]] = mapped_column(Numeric)
+    max_drawdown: Mapped[Optional[float]] = mapped_column(Numeric)
+    win_rate: Mapped[Optional[float]] = mapped_column(Numeric)
+    n_trades: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    brier: Mapped[Optional[float]] = mapped_column(Numeric)
+    log_loss: Mapped[Optional[float]] = mapped_column(Numeric)
+    calibration_error: Mapped[Optional[float]] = mapped_column(Numeric)
+
+    __table_args__ = (
+        Index("idx_backtest_results_created", "created_at"),
+        Index("idx_backtest_results_model", "model_id", "created_at"),
+    )

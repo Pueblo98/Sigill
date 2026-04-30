@@ -2,46 +2,29 @@
 
 Renders the most recent persisted backtest result.
 
-KNOWN SCHEMA GAP (as of phase 5 lane F2): there is no ``BacktestResult`` ORM
-table. Lane D's :class:`sigil.backtesting.engine.Backtester` returns an
-in-memory result and nothing currently writes it to the database. This
-widget queries a *hypothetical* ``backtest_results`` table directly via raw
-SQL so we don't need an ORM model. When the table is absent — the common
-case today — SQLAlchemy raises ``OperationalError`` (SQLite reports
-``no such table`` and Postgres reports ``relation does not exist``); we
-treat that as the empty state. The widget will start producing real output
-the day a future lane lands the table + persistence shim.
+The ``backtest_results`` table is defined in ``sigil.models.BacktestResult``
+and populated by ``sigil.backtesting.persistence.persist_backtest_result``
+(TODO-8). The widget keeps an ``OperationalError`` fallback so older
+deploys that haven't run the migration still render the empty state instead
+of throwing 500s.
 
-Expected schema (whatever lane lands it should match these column names):
-
-    id                TEXT/UUID PRIMARY KEY
-    name              TEXT  -- human label
-    created_at        TIMESTAMP
-    initial_capital   NUMERIC
-    final_equity      NUMERIC
-    roi               NUMERIC
-    sharpe            NUMERIC
-    max_drawdown      NUMERIC
-    n_trades          INTEGER
-    brier             NUMERIC NULL
-    log_loss          NUMERIC NULL
-    calibration_error NUMERIC NULL
-
-The render contract degrades gracefully — unknown columns are skipped.
+The render contract degrades gracefully — NULL columns (Brier, log loss,
+calibration error) are skipped rather than rendered as "n/a".
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, ClassVar, Mapping, Optional, Type
+from typing import Any, ClassVar, Optional, Type
 
 from markupsafe import Markup, escape
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from sigil.dashboard.config import WidgetConfig
 from sigil.dashboard.widget import WidgetBase, register_widget
+from sigil.models import BacktestResult
 
 
 class BacktestResultsConfig(WidgetConfig):
@@ -105,35 +88,30 @@ class BacktestResultsWidget(WidgetBase):
     async def fetch(self, session: Any) -> Optional[BacktestResultRow]:
         try:
             result = await session.execute(
-                text(
-                    "SELECT * FROM backtest_results "
-                    "ORDER BY created_at DESC LIMIT 1"
-                )
+                select(BacktestResult)
+                .order_by(BacktestResult.created_at.desc())
+                .limit(1)
             )
-            row = result.mappings().first()
+            row = result.scalar_one_or_none()
         except (OperationalError, ProgrammingError):
-            # Table doesn't exist yet — schema gap documented above. Treat
-            # as empty rather than blowing up the dashboard.
+            # Migration hasn't been run on this deploy yet. Empty state
+            # rather than 500.
             return None
 
         if row is None:
             return None
-        return self._coerce_row(row)
-
-    @staticmethod
-    def _coerce_row(row: Mapping[str, Any]) -> BacktestResultRow:
         return BacktestResultRow(
-            name=row.get("name"),
-            created_at=_coerce_datetime(row.get("created_at")),
-            initial_capital=_coerce_float(row.get("initial_capital")),
-            final_equity=_coerce_float(row.get("final_equity")),
-            roi=_coerce_float(row.get("roi")),
-            sharpe=_coerce_float(row.get("sharpe")),
-            max_drawdown=_coerce_float(row.get("max_drawdown")),
-            n_trades=_coerce_int(row.get("n_trades")),
-            brier=_coerce_float(row.get("brier")),
-            log_loss=_coerce_float(row.get("log_loss")),
-            calibration_error=_coerce_float(row.get("calibration_error")),
+            name=row.name,
+            created_at=_coerce_datetime(row.created_at),
+            initial_capital=_coerce_float(row.initial_capital),
+            final_equity=_coerce_float(row.final_equity),
+            roi=_coerce_float(row.roi),
+            sharpe=_coerce_float(row.sharpe),
+            max_drawdown=_coerce_float(row.max_drawdown),
+            n_trades=_coerce_int(row.n_trades),
+            brier=_coerce_float(row.brier),
+            log_loss=_coerce_float(row.log_loss),
+            calibration_error=_coerce_float(row.calibration_error),
         )
 
     def render(self, data: Optional[BacktestResultRow]) -> Markup:
