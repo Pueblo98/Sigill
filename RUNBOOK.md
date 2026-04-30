@@ -1,17 +1,16 @@
 # Sigil — Runbook
 
 Operator-facing how-to for bringing the system up locally and verifying it.
-Last updated: Wave 2 (2026-04-30).
+Last updated: Phase 5.0 + framework polish (2026-04-30).
 
-This runbook covers two flows:
+This runbook covers three flows:
 
-1. **Smoke-test path** (no external creds, deterministic) — used to verify
-   every code change end-to-end without hitting Kalshi/Polymarket.
-2. **Live-ish path** (Postgres + uvicorn + Next.js) — what an operator runs
-   to actually look at the dashboard.
-
-Wave 2 only fully exercised path 1. Path 2 is documented but the operator
-runs it the first time.
+1. **In-process smoke** (no port, no external creds) — fastest signal.
+2. **Real uvicorn smoke** — boots uvicorn on a non-default port, curls
+   every route. Verifies the production-path lifespan + binding.
+3. **Live operator stack** (Postgres + uvicorn + ingestion + Next.js) —
+   what an operator runs to actually look at the dashboard against real
+   markets.
 
 ---
 
@@ -71,13 +70,78 @@ The full pytest suite covers the lower layers:
 .venv/Scripts/python.exe -m pytest -v
 ```
 
-As of end of Wave 2, that should be **206/206 passing**.
+As of end of Phase 5 + TODO-8, that should be **357/357 passing**.
 
 ---
 
-## Path 2 — Live-ish local stack (operator dashboard)
+## Path 2 — Real uvicorn smoke (port-bound, no external services)
 
-### 2a. Postgres
+Verifies the production-path startup: lifespan hooks fire, dashboard
+mounts, refresh scheduler starts, real port binding works. Cleaner
+signal than Path 1 because it exercises the same boot path uvicorn
+takes in production.
+
+```bash
+# 1. Fresh DB with all migrations (initial schema + backtest_results)
+rm -f ./sigil_smoke.db
+ALEMBIC_DATABASE_URL='sqlite:///./sigil_smoke.db' \
+    .venv/Scripts/python.exe -m alembic upgrade head
+
+# 2. Launch uvicorn against the smoke DB (non-default port to avoid
+#    colliding with anything on 8000). Background; kill at the end.
+SIGIL_SMOKE_DB='./sigil_smoke.db' SIGIL_SMOKE_PORT=8765 \
+    .venv/Scripts/python.exe scripts/smoke_uvicorn.py &
+UVICORN_PID=$!
+sleep 3   # let lifespan complete
+
+# 3. Curl every public surface
+curl -s -o /dev/null -w "GET /                       -> %{http_code}\n" \
+    http://127.0.0.1:8765/
+curl -s -o /dev/null -w "GET /page/command-center    -> %{http_code}\n" \
+    http://127.0.0.1:8765/page/command-center
+curl -s -o /dev/null -w "GET /page/markets           -> %{http_code}\n" \
+    http://127.0.0.1:8765/page/markets
+curl -s -o /dev/null -w "GET /page/models            -> %{http_code}\n" \
+    http://127.0.0.1:8765/page/models
+curl -s -o /dev/null -w "GET /page/health            -> %{http_code}\n" \
+    http://127.0.0.1:8765/page/health
+curl -s -o /dev/null -w "GET /page/bogus             -> %{http_code}\n" \
+    http://127.0.0.1:8765/page/bogus
+curl -s -o /dev/null -w "GET /dashboard/static/dashboard.css -> %{http_code}\n" \
+    http://127.0.0.1:8765/dashboard/static/dashboard.css
+curl -s -o /dev/null -w "GET /dashboard/static/relative-time.js -> %{http_code}\n" \
+    http://127.0.0.1:8765/dashboard/static/relative-time.js
+curl -s -o /dev/null -w "GET /api/health             -> %{http_code}\n" \
+    http://127.0.0.1:8765/api/health
+curl -s -o /dev/null -w "GET /api/markets            -> %{http_code}\n" \
+    http://127.0.0.1:8765/api/markets
+
+# Expected:
+#   /                          -> 302 (redirect to /page/<default>)
+#   /page/command-center       -> 200
+#   /page/markets              -> 200
+#   /page/models               -> 200
+#   /page/health               -> 200
+#   /page/bogus                -> 404
+#   /dashboard/static/*        -> 200 (text/css and text/javascript)
+#   /api/health, /api/markets  -> 200
+
+# 4. Cleanup
+kill $UVICORN_PID 2>/dev/null
+rm -f ./sigil_smoke.db
+```
+
+The first page load shows widgets in a `Loading...` state because the
+60-second background refresh hasn't fired yet. Wait ~70s and re-curl to
+see widgets populated from the cache. The pytest suite covers populated
+widgets via FastAPI TestClient — the live smoke just confirms the
+binding/lifespan path.
+
+---
+
+## Path 3 — Live operator stack (Postgres + ingestion + dashboard)
+
+### 3a. Postgres
 
 You can either run real Postgres or fall back to the SQLite path. The schema
 is identical via alembic; downstream code doesn't care.
@@ -104,14 +168,17 @@ ALEMBIC_DATABASE_URL='sqlite:///./sigil_dev.db' \
     .venv/Scripts/python.exe -m alembic upgrade head
 ```
 
-### 2b. API server
+### 3b. API + Python dashboard
 
 `API_BIND_HOST` defaults to `127.0.0.1` (per decision 1H). For a dashboard
-that's only reachable over Tailscale, set it to your Tailscale IP:
+that's only reachable over Tailscale, set it to your Tailscale IP. Note
+that `Config` is a plain pydantic `BaseModel` — env vars don't auto-flow
+in. Either edit `config.py`, or use a wrapper script that mutates `config`
+before `uvicorn.run()` (see `scripts/smoke_uvicorn.py`).
 
-```bash
-export API_BIND_HOST=100.x.y.z
-```
+Set `DASHBOARD_ENABLED=true` (or flip the default in `config.py`) to mount
+the Python dashboard at `/`. With it off, only `/api/*` is served — the
+existing FastAPI tests run that way to skip the refresh scheduler.
 
 Boot:
 
@@ -122,20 +189,25 @@ uvicorn sigil.api.server:app --host 127.0.0.1 --port 8000
 ```
 
 The lifespan handler calls `init_db()` and `load_secrets()` (sops/age, no-op
-if the sops binary or `secrets.enc.yaml` are missing). Look for the line:
+if the sops binary or `secrets.enc.yaml` are missing), and — when
+`DASHBOARD_ENABLED` is true — starts the dashboard refresh job. Look for
+the lines:
 
     Sigil API listening on 127.0.0.1:8000 (local/tailscale only)
+    Dashboard at http://127.0.0.1:8000/
 
 If you ever see `PUBLIC EXPOSURE — VERIFY`, you bound 0.0.0.0 — fix it.
 
 Smoke check:
 
 ```bash
+curl -s http://127.0.0.1:8000/                    # 302 to /page/<default>
+curl -s http://127.0.0.1:8000/page/command-center  # HTML
 curl -s http://127.0.0.1:8000/api/health | jq
 curl -s http://127.0.0.1:8000/api/markets | jq '.[0]'
 ```
 
-### 2c. Ingestion + bankroll snapshots
+### 3c. Ingestion + bankroll snapshots
 
 The orchestrator (`src/sigil/main.py`) does two things:
 
@@ -153,7 +225,7 @@ Requires `KALSHI_API_KEY` etc. in env or in `secrets.enc.yaml`:
 If you're just dogfooding the dashboard with no live data, skip this and
 seed a `BankrollSnapshot` row by hand or via `scripts/smoke_paper_flow.py`.
 
-### 2d. Settlement subscriber
+### 3d. Settlement subscriber
 
 Lives in `sigil.ingestion.settlement` but isn't yet wired into `main.py`.
 For now, run it manually if you have positions to settle:
@@ -171,7 +243,7 @@ async def go():
 asyncio.run(go())
 ```
 
-### 2e. Next.js dashboard
+### 3e. Next.js dashboard
 
 ```bash
 cd sigil-frontend
@@ -251,24 +323,51 @@ asyncio.run(fire())
 
 ---
 
-## Known gaps surfaced during W2.4
+## Persisting a backtest run
 
-These are not blockers for Wave 2 sign-off but should be picked up in
-Phase 5 / 6 work:
+Backtest results don't auto-persist — `Backtester.run()` returns an
+in-memory dataclass. Pipe it through `persist_backtest_result` to land
+a row in `backtest_results` (which the F2 dashboard widget reads):
 
-1. **OMS doesn't open a `Position` row on paper-fill.** The OMS transitions
-   the order to FILLED but no position bookkeeping happens. The smoke
-   script (`scripts/smoke_paper_flow.py`) has to mirror a Position by
-   hand. Settlement-handler + reconciliation both assume positions exist.
-   File this as TODO under "OMS post-fill writes."
-2. **Settlement subscriber not wired into `main.py`.** `run_ws_subscriber`
-   exists and is tested end-to-end, but `main.py` only runs ingestion
-   sync + bankroll snapshots. A second background task is needed.
-3. **`scripts/smoke_*.py` don't run under pytest.** They're standalone
+```python
+from sigil.backtesting.engine import Backtester
+from sigil.backtesting.metrics import all_metrics
+from sigil.backtesting.persistence import persist_backtest_result
+from sigil.db import AsyncSessionLocal
+
+result = backtester.run()
+metrics = all_metrics(result)  # optional; persist will compute defaults
+async with AsyncSessionLocal() as session:
+    await persist_backtest_result(
+        session,
+        result,
+        name="elo_v2 nightly",
+        model_id="elo_v2",
+        metrics=metrics,
+    )
+    await session.commit()
+```
+
+The widget on `/page/models` shows the most recent row.
+
+---
+
+## Notes / gaps
+
+These are not blockers; tracked in `TODOS.md`:
+
+1. **`scripts/smoke_*.py` don't run under pytest.** They're standalone
    verification scripts; equivalents under `tests/integration/` cover
    the same paths.
-4. **Existing `sigil_dev.db` predates Wave 0's schema.** Don't migrate
+2. **Existing `sigil_dev.db` predates Wave 0's schema.** Don't migrate
    it forward — start from a fresh DB.
+3. **`Config` doesn't read env vars** (it's `BaseModel`, not
+   `BaseSettings`). Use `scripts/smoke_uvicorn.py` as a template if you
+   need to override DB URL / dashboard flag without editing `config.py`.
+
+Closed since prior runbook revision: OMS now opens Positions on fill
+(TODO-4), settlement subscriber is wired into `main.py` and gated by
+`SETTLEMENT_WS_ENABLED` (TODO-5).
 
 ---
 
@@ -278,3 +377,4 @@ Phase 5 / 6 work:
 |---|---|
 | `wave-1-verified` | Wave 1 lanes A/B/C/D all green under pytest. |
 | `wave-2-complete` | Reconciliation done, 4 missing critical-path tests added, smoke green, runbook written. |
+| `phase-5-0-complete` | Read-only Python dashboard live alongside the Next.js frontend. 12 widgets, 4 pages, server-rendered HTML, per-widget TTL cache, 60s background refresh. |
