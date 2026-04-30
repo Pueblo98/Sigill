@@ -1,9 +1,40 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function MarketBrowser() {
+  const [markets, setMarkets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const filteredMarkets = markets.filter(m => {
+    // Exact match if category is selected
+    if (selectedCategory && m.taxonomy_l1 !== selectedCategory.toLowerCase()) {
+      return false;
+    }
+    // Case-insensitive substring match for search
+    if (searchQuery && !m.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    async function fetchMarkets() {
+      try {
+        const res = await fetch('http://localhost:8000/api/markets');
+        const json = await res.json();
+        setMarkets(json);
+      } catch (e) {
+        console.error("Failed to fetch markets", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMarkets();
+  }, []);
   return (
     <div className="flex flex-1 h-full overflow-hidden">
       {/* MARKET FILTERS SIDEBAR */}
@@ -21,12 +52,18 @@ export default function MarketBrowser() {
                 { label: 'Crypto', icon: 'currency_bitcoin', color: 'text-purple-400' },
                 { label: 'Entertainment', icon: 'movie', color: 'text-pink-400' }
               ].map((cat) => (
-                <button key={cat.label} className="w-full flex items-center justify-between p-2 hover:bg-[#39393b] transition-colors group">
+                <button 
+                  key={cat.label} 
+                  onClick={() => setSelectedCategory(selectedCategory === cat.label ? null : cat.label)}
+                  className={`w-full flex items-center justify-between p-2 hover:bg-[#39393b] transition-colors group ${selectedCategory === cat.label ? 'bg-[#39393b] border-l-2 border-[#7C3AED]' : ''}`}
+                >
                   <div className="flex items-center gap-3">
                     <span className={`material-symbols-outlined text-sm ${cat.color}`}>{cat.icon}</span>
                     <span className="text-xs">{cat.label}</span>
                   </div>
-                  <span className="material-symbols-outlined text-xs text-[#958da1]">expand_more</span>
+                  <span className="material-symbols-outlined text-xs text-[#958da1]">
+                    {selectedCategory === cat.label ? 'check' : 'expand_more'}
+                  </span>
                 </button>
               ))}
             </div>
@@ -68,7 +105,21 @@ export default function MarketBrowser() {
         <div className="flex justify-between items-end mb-8">
           <div>
             <h1 className="text-3xl font-black tracking-tight mb-2 uppercase italic text-[#e5e1e4]">MARKET BROWSER</h1>
-            <p className="text-[10px] font-mono text-[#958da1] tracking-wider uppercase">Scanning 1,402 active contracts (DEMO_MODE)</p>
+            <p className="text-[10px] font-mono text-[#958da1] tracking-wider uppercase">Scanning {filteredMarkets.length} active live contracts</p>
+          </div>
+          
+          {/* SEARCH BAR */}
+          <div className="flex-1 max-w-md mx-8">
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#958da1]">search</span>
+              <input 
+                type="text" 
+                placeholder="Search markets..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#1b1b1d] border border-[#201f21] p-3 pl-10 text-sm font-mono focus:outline-none focus:border-[#7C3AED]/50 text-[#e5e1e4] placeholder-[#958da1]/50" 
+              />
+            </div>
           </div>
           <div className="flex gap-4">
             <div className="flex items-center bg-[#1b1b1d] border border-[#201f21]">
@@ -87,131 +138,34 @@ export default function MarketBrowser() {
 
         {/* Bento Grid Markets */}
         <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
-          {/* High Edge Card Template */}
-          <Link href="/trade-detail" className="group relative bg-[#201f21] border border-[#7C3AED]/40 shadow-[0_0_20px_rgba(124,58,237,0.1)] hover:shadow-[0_0_30px_rgba(124,58,237,0.25)] transition-all duration-300 p-6 flex flex-col h-[340px] block cursor-pointer">
-            <div className="flex justify-between items-start mb-4">
-              <span className="bg-[#7C3AED] text-[#ede0ff] text-[9px] font-bold px-2 py-0.5 font-mono tracking-widest uppercase">HIGH EDGE</span>
-              <span className="bg-blue-900/30 text-blue-400 text-[9px] font-mono font-bold px-2 py-0.5">POLYMARKET</span>
-            </div>
-            <h2 className="text-lg font-bold leading-tight mb-6 group-hover:text-[#d2bbff] transition-colors line-clamp-2">Will the Federal Reserve cut rates by 25bps in December?</h2>
-            
-            <div className="flex-1 grid grid-cols-2 gap-8 items-center">
-              <div className="relative w-32 h-32 flex items-center justify-center">
-                <svg className="w-full h-full -rotate-90">
-                  <circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" strokeWidth="8"></circle>
-                  <circle cx="64" cy="64" fill="transparent" r="58" stroke="#7C3AED" strokeDasharray="364" strokeDashoffset="100" strokeWidth="8"></circle>
-                </svg>
-                <div className="absolute flex flex-col items-center">
-                  <span className="font-mono text-2xl font-black text-[#e5e1e4]">72%</span>
-                  <span className="text-[8px] uppercase tracking-widest text-[#958da1] font-bold">Probability</span>
-                </div>
+          {loading ? (
+             <div className="text-[#958da1] p-8 font-mono uppercase tracking-widest text-xs col-span-full">INITIALIZING SIGIL DATABASE...</div>
+          ) : filteredMarkets.length === 0 ? (
+             <div className="text-[#958da1] p-8 font-mono uppercase tracking-widest text-xs col-span-full">NO MARKETS FOUND MATCHING "{searchQuery}" OR SELECTED CATEGORIES</div>
+          ) : filteredMarkets.map((m: any) => (
+            <Link key={m.external_id || m.id} href={`/trade-detail/${m.external_id}`} className="group relative bg-[#201f21] border border-[#1b1b1d] hover:border-[#7C3AED]/40 hover:shadow-[0_0_30px_rgba(124,58,237,0.1)] transition-all duration-300 p-6 flex flex-col h-[340px] block cursor-pointer">
+              <div className="flex justify-between items-start mb-4">
+                <span className="bg-[#39393b] text-[#958da1] text-[9px] font-bold px-2 py-0.5 font-mono tracking-widest uppercase">{m.market_type || 'STANDARD'}</span>
+                <span className={`text-[9px] font-mono font-bold px-2 py-0.5 uppercase ${m.platform === 'kalshi' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-400'}`}>{m.platform}</span>
               </div>
+              <h2 className="text-lg font-bold leading-tight mb-6 group-hover:text-[#d2bbff] transition-colors line-clamp-2 text-[#e5e1e4]">{m.title}</h2>
               
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[9px] font-mono font-bold uppercase tracking-wider">
-                    <span>Model Px</span>
-                    <span className="text-[#7C3AED]">72.4¢</span>
-                  </div>
-                  <div className="h-2 bg-[#0e0e10] overflow-hidden"><div className="h-full bg-[#7C3AED]" style={{ width: '72%' }}></div></div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[9px] font-mono font-bold uppercase tracking-wider">
-                    <span>Market Px</span>
-                    <span className="text-[#e5e1e4]">58.0¢</span>
-                  </div>
-                  <div className="h-2 bg-[#0e0e10] overflow-hidden"><div className="h-full bg-[#39393b]" style={{ width: '58%' }}></div></div>
-                </div>
+              <div className="flex-1 flex flex-col justify-center items-center text-[#958da1]/40 border border-dashed border-[#1b1b1d] mb-4">
+                 <span className="material-symbols-outlined text-4xl mb-2">query_stats</span>
+                 <span className="text-[9px] font-mono uppercase tracking-widest">Model evaluation pending</span>
               </div>
-            </div>
 
-            <div className="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] font-mono">
-              <div className="flex items-center gap-2 text-[#958da1]">
-                <span className="material-symbols-outlined text-xs">schedule</span>
-                <span>12D 04H</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[#958da1] uppercase">EDGE</span>
-                <span className="text-[#d2bbff] font-bold">+14.4¢</span>
-              </div>
-            </div>
-          </Link>
-
-          {/* Stable Edge Card */}
-          <Link href="/trade-detail" className="group bg-[#201f21] border border-[#1b1b1d] hover:bg-[#2a2a2c] transition-all p-6 flex flex-col h-[340px] block cursor-pointer">
-            <div className="flex justify-between items-start mb-4">
-              <span className="bg-[#39393b] text-[#958da1] text-[9px] font-bold px-2 py-0.5 font-mono tracking-widest uppercase">STABLE EDGE</span>
-              <span className="bg-emerald-900/30 text-emerald-400 text-[9px] font-mono font-bold px-2 py-0.5">KALSHI</span>
-            </div>
-            <h2 className="text-lg font-bold leading-tight mb-6 line-clamp-2 text-[#e5e1e4]">Will NYC record a daily high over 80°F before Nov 1?</h2>
-            <div className="flex-1 grid grid-cols-2 gap-8 items-center">
-               <div className="relative w-32 h-32 flex items-center justify-center">
-                <svg className="w-full h-full -rotate-90">
-                  <circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" strokeWidth="8"></circle>
-                  <circle cx="64" cy="64" fill="transparent" r="58" stroke="#d2bbff" strokeDasharray="364" strokeDashoffset="280" strokeWidth="6"></circle>
-                </svg>
-                <div className="absolute flex flex-col items-center">
-                  <span className="font-mono text-2xl font-black text-[#e5e1e4]">23%</span>
-                  <span className="text-[8px] uppercase tracking-widest text-[#958da1] font-bold">Probability</span>
+              <div className="mt-auto pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] font-mono">
+                <div className="flex items-center gap-2 text-[#958da1]">
+                  <span className="material-symbols-outlined text-xs">schedule</span>
+                  <span>{m.resolution_date ? new Date(m.resolution_date).toLocaleDateString() : 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[8px] text-[#958da1]/30 uppercase">
+                  ID: {m.external_id?.substring(0,10)}...
                 </div>
               </div>
-              <div className="space-y-4 text-[#e5e1e4]">
-                <div className="text-[9px] font-mono uppercase tracking-widest text-[#958da1]">Vol: $4.2k</div>
-                <div className="text-[9px] font-mono uppercase tracking-widest text-[#958da1]">OI: 1.1k</div>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] font-mono">
-               <div className="flex items-center gap-2 text-[#958da1]">
-                <span className="material-symbols-outlined text-xs">schedule</span>
-                <span>8H 12M</span>
-              </div>
-               <span className="text-[#d2bbff] font-bold">+2.1¢ EDGE</span>
-            </div>
-          </Link>
-
-          {/* Politics Card */}
-          <Link href="/trade-detail" className="group relative bg-[#201f21] border border-[#7C3AED]/40 shadow-[0_0_20px_rgba(124,58,237,0.1)] hover:shadow-[0_0_30px_rgba(124,58,237,0.25)] transition-all duration-300 p-6 flex flex-col h-[340px] block cursor-pointer">
-            <div className="flex justify-between items-start mb-4">
-              <span className="bg-[#7C3AED] text-[#ede0ff] text-[9px] font-bold px-2 py-0.5 font-mono tracking-widest uppercase">HIGH EDGE</span>
-              <span className="bg-blue-900/30 text-blue-400 text-[9px] font-mono font-bold px-2 py-0.5">POLYMARKET</span>
-            </div>
-            <h2 className="text-lg font-bold leading-tight mb-6 group-hover:text-[#d2bbff] transition-colors line-clamp-2 text-[#e5e1e4]">Candidate X to win the 2024 Popular Vote?</h2>
-            <div className="flex-1 grid grid-cols-2 gap-8 items-center">
-              <div className="relative w-32 h-32 flex items-center justify-center">
-                <svg className="w-full h-full -rotate-90">
-                  <circle cx="64" cy="64" fill="transparent" r="58" stroke="#131315" strokeWidth="8"></circle>
-                  <circle cx="64" cy="64" fill="transparent" r="58" stroke="#7C3AED" strokeDasharray="364" strokeDashoffset="180" strokeWidth="8"></circle>
-                </svg>
-                <div className="absolute flex flex-col items-center">
-                  <span className="font-mono text-2xl font-black text-[#e5e1e4]">51%</span>
-                  <span className="text-[8px] uppercase tracking-widest text-[#958da1] font-bold">Probability</span>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[9px] font-mono font-bold uppercase tracking-wider">
-                    <span>Model Px</span>
-                    <span className="text-[#7C3AED]">51.2¢</span>
-                  </div>
-                  <div className="h-2 bg-[#0e0e10] overflow-hidden"><div className="h-full bg-[#7C3AED]" style={{ width: '51%' }}></div></div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[9px] font-mono font-bold uppercase tracking-wider text-[#e5e1e4]">
-                    <span>Market Px</span>
-                    <span>39.0¢</span>
-                  </div>
-                  <div className="h-2 bg-[#0e0e10] overflow-hidden"><div className="h-full bg-[#39393b]" style={{ width: '39%' }}></div></div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] font-mono">
-              <div className="flex items-center gap-2 text-[#958da1]">
-                <span className="material-symbols-outlined text-xs">schedule</span>
-                <span>11D 20H</span>
-              </div>
-              <span className="text-[#d2bbff] font-bold">+12.2¢ EDGE</span>
-            </div>
-          </Link>
+            </Link>
+          ))}
         </div>
       </section>
     </div>

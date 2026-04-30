@@ -11,6 +11,11 @@ class DataSource(Protocol):
         """Fetch raw data from source."""
         ...
 
+    async def stream_prices(self, market_ids: list[str]) -> AsyncIterator[dict]:
+        """Stream real-time price updates for given markets."""
+        yield {}
+        ...
+
     def normalize(self, raw_data: Any) -> pd.DataFrame:
         """Normalize raw data into a standard DataFrame."""
         ...
