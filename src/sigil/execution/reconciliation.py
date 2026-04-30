@@ -115,6 +115,12 @@ class ReconciliationTracker:
             frozen=False,
         )
 
+        if is_match:
+            # Exchange recovered to agree with local. Hysteresis is about
+            # *overriding* local; once the two sides agree, the alarm clears
+            # immediately regardless of the consecutive-match counter.
+            unfreeze(exchange.platform, exchange.market_id, exchange.outcome)
+
         if not is_match and not exchange_stable:
             freeze(exchange.platform, exchange.market_id, exchange.outcome)
             outcome.frozen = True
