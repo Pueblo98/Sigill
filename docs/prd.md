@@ -1608,3 +1608,21 @@ sigil/
 ---
 
 *This document is a living specification. Update it as decisions are made, models are validated, and the system evolves. The first version is always wrong — the value is in having a clear starting point to iterate from.*
+
+---
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | Not run. Reviewer flagged 15-25%/mo ROI target as unrealistic; user held scope. |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | Not run. Offered, skipped. |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | issues_open | 23 issues across 4 sections, all decided. 8 critical failure-mode gaps logged for implementation. 49 untested codepaths in coverage diagram. |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | Not run. Frontend in-scope but no design audit performed. |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | Not run. N/A for an internal trading system. |
+
+**UNRESOLVED:** 0 (every issue got a user answer)
+**CRITICAL GAPS:** 8 (idempotency, reconciliation, settlement, drawdown gate, Kelly edge cases, risk-check fail-closed, LLM backoff, OMS state-race) — all queued in `TODOS.md` and the test plan
+
+**VERDICT:** Eng review complete with issues_open. Implementation can proceed lane-by-lane (S1→S8) per the parallelization plan. Recommend `/plan-design-review` before frontend wiring + `/codex review` for an independent challenge before merge.
+
