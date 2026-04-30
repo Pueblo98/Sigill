@@ -90,6 +90,53 @@ the WS settlement loop, plus the hourly polling fallback.
 
 ---
 
+## TODO-6: Dashboard widget theming via WidgetBase context
+
+**What:** F2's chart widgets (`charts.py`) use a module-level `set_theme()` to
+get accent/positive/negative colors into matplotlib. Cleaner: F1's loader
+sets the active theme on the registry once at startup, and `WidgetBase`
+exposes `self.theme` for child widgets that need it (charts, anything with
+color-coded states).
+
+**Why:** module-level state is hard to test in isolation and prevents per-
+page theme overrides if we ever want them.
+
+**Discovered:** Phase 5 Lane F2 report, 2026-04-30. Not blocking 5.0.
+
+---
+
+## TODO-7: Per-widget TTL in DashboardCache
+
+**What:** F1's `DashboardCache` uses a single `cachetools.TTLCache` with one
+global TTL. Each widget already declares its own `cache_ttl`, and
+`requires_update()` enforces per-widget timing — but the LRU eviction can
+drop a `1h` entry as fast as a `30s` one because the cache itself doesn't
+know about per-key TTLs.
+
+**Fix sketch:** maintain per-widget-type TTLCache instances inside
+`DashboardCache`, or use `cachetools.LRUCache` plus an explicit (key, expiry)
+tuple.
+
+**Discovered:** F2 report, 2026-04-30. Subtle correctness issue, not a 5.0
+blocker.
+
+---
+
+## TODO-8: Persist BacktestResult so the widget has data
+
+**What:** Lane D's `Backtester.run()` returns an in-memory `BacktestResult`;
+nothing persists it. F2's `backtest_results` widget queries a hypothetical
+`backtest_results` table via raw SQL and treats `OperationalError ("no such
+table")` as the empty state.
+
+**Fix:** add a `BacktestResult` ORM table (id, model_id, run_at, brier,
+roi, max_drawdown, sharpe, equity_curve_json, trades_json), an alembic
+migration, and a `persist_backtest_result(session, result)` helper.
+
+**Discovered:** F2 report, 2026-04-30.
+
+---
+
 ## Decisions deferred but logged (not actioned)
 
 - **15-25% monthly ROI target:** held as PRD-stated; reviewer flagged as fantasy but user chose hold-scope.
