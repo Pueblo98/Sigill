@@ -1,17 +1,21 @@
 """
 stat_arb.py — Statistical Arbitrage Scanner: Kalshi ↔ Polymarket
 
+Per REVIEW-DECISIONS.md 1C, the StatArbScanner is DISPLAY-ONLY for cross-platform
+arbitrage opportunities. The DecisionEngine never auto-executes Polymarket legs.
+This scanner exists to surface opportunities to the user via the dashboard.
+
 Fetches live markets from both platforms, fuzzy-matches equivalent events
 by title, then surfaces:
   - PURE_ARB:  Guaranteed profit (buy YES on A + NO on B < $1 after fees)
-  - STAT_EDGE: Significant price divergence (≥5¢ mid gap) suggesting mispricing
+  - STAT_EDGE: Significant price divergence (>=5c mid gap) suggesting mispricing
 
 No database required — fetches directly from both REST APIs.
 
 Usage:
     python -m sigil.decision.stat_arb                # one-shot scan
     python -m sigil.decision.stat_arb --loop 60      # scan every 60 seconds
-    python -m sigil.decision.stat_arb --min-profit 3 # 3¢ min arb profit
+    python -m sigil.decision.stat_arb --min-profit 3 # 3c min arb profit
 """
 
 from __future__ import annotations
