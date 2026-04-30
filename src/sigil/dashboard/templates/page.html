@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }}{% endblock %}
+{% block content %}
+<section class="page">
+  <header class="page__header">
+    <h1 class="page__title">{{ page.title }}</h1>
+  </header>
+  <div class="grid">
+    {% for column in columns %}
+      {% set span = column_spans[loop.index0] %}
+      <div class="grid__col grid__col--{{ span }}">
+        {% for widget_html in column.widgets_html %}
+          <div class="grid__cell">{{ widget_html|safe }}</div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

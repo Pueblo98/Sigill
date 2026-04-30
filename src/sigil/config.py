@@ -69,5 +69,10 @@ class Config(BaseModel):
 
     SETTLEMENT_WS_ENABLED: bool = False  # off by default: needs Kalshi creds + connectivity
 
+    # Phase 5 dashboard: gate the Jinja2 dashboard mount + APScheduler refresh
+    # so existing tests (which import api/server.py) don't pay the cost of
+    # loading dashboard.yaml or starting the refresh job.
+    DASHBOARD_ENABLED: bool = False
+
 
 config = Config()

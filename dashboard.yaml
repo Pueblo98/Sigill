@@ -1,0 +1,78 @@
+# Sigil dashboard configuration.
+#
+# Edit this file to change which widgets render where. The FastAPI process
+# loads it once at startup (when DASHBOARD_ENABLED=true) and the
+# RefreshOrchestrator drives each widget's fetch on a 60s tick. Cache TTLs
+# below are per-widget hints; see src/sigil/dashboard/cache.py for the
+# parser (NNs/m/h/d or the named aliases hourly/daily).
+#
+# NOTE: Phase 5 lane F3 ships with only F1 widgets wired in. Lane F2
+# widgets (model_brier / model_calibration / model_roi_curve /
+# source_health_table / error_log / backtest_results) exist as code but
+# are intentionally not referenced here until F2 lands. The four-page
+# layout below intentionally uses the F1 widgets that already cover each
+# section's intent — it parses, instantiates, and renders today.
+
+pages:
+  - name: command-center
+    title: Command Center
+    default: true
+    columns:
+      - size: full
+        widgets:
+          - type: bankroll_summary
+            cache: 1m
+          - type: signal_queue
+            cache: 30s
+            limit: 5
+            min_edge: 0.05
+      - size: small
+        widgets:
+          - type: system_health_strip
+            cache: 1m
+          - type: recent_activity
+            cache: 30s
+            limit: 20
+
+  - name: markets
+    title: Market Explorer
+    columns:
+      - size: full
+        widgets:
+          - type: market_list
+            cache: 1m
+            sort: edge_desc
+            limit: 50
+            filters:
+              min_edge: 0.05
+
+  - name: models
+    title: Model Performance
+    # F2 widgets (model_brier, model_calibration, model_roi_curve) will move
+    # in once the F2 lane lands. open_positions stands in so the page is
+    # populated rather than empty.
+    columns:
+      - size: full
+        widgets:
+          - type: open_positions
+            cache: 1m
+
+  - name: health
+    title: Data Health
+    # source_health_table + error_log live in F2; system_health_strip from
+    # F1 already covers the headline status.
+    columns:
+      - size: full
+        widgets:
+          - type: system_health_strip
+            cache: 30s
+          - type: recent_activity
+            cache: 1m
+            limit: 50
+
+theme:
+  background: "#1b1b1d"
+  surface: "#201f21"
+  accent: "#d2bbff"
+  positive: "#10b981"
+  negative: "#ef4444"

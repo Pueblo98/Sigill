@@ -1,0 +1,410 @@
+/* Sigil dashboard — terminal-precision dark theme.
+ * CSS variables come from base.html's inlined <style> block, fed by the
+ * theme: section of dashboard.yaml. Defaults below are belt-and-suspenders
+ * so the page is still legible if interpolation fails.
+ */
+
+:root {
+  --bg: #1b1b1d;
+  --surface: #201f21;
+  --accent: #d2bbff;
+  --positive: #10b981;
+  --negative: #ef4444;
+  --warning: #f59e0b;
+  --fg: #e5e1e4;
+  --fg-muted: rgba(229, 225, 228, 0.6);
+  --fg-faint: rgba(229, 225, 228, 0.4);
+  --border: #39393b;
+  --border-subtle: #1b1b1d;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular,
+    Menlo, Consolas, monospace;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  min-height: 100%;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.link { color: var(--accent); }
+
+code {
+  font-family: var(--font-mono);
+  background: var(--surface);
+  padding: 1px 4px;
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------
+ * Topbar / nav
+ * ------------------------------------------------------------------ */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.topbar__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.topbar__logo {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+}
+
+.topbar__sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.topbar__nav {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.topbar__link {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-muted);
+  padding: 6px 10px;
+  border: 1px solid transparent;
+}
+
+.topbar__link:hover {
+  color: var(--fg);
+  text-decoration: none;
+  border-color: var(--border);
+}
+
+.topbar__link--active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ------------------------------------------------------------------
+ * Layout
+ * ------------------------------------------------------------------ */
+.content {
+  padding: 20px 24px 60px;
+  min-height: calc(100vh - 120px);
+}
+
+.page__header {
+  margin-bottom: 16px;
+}
+
+.page__title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.grid__col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.grid__col--full  { grid-column: span 12; }
+.grid__col--half  { grid-column: span 6; }
+.grid__col--small { grid-column: span 4; }
+.grid__cell { min-width: 0; }
+
+@media (max-width: 768px) {
+  .grid { grid-template-columns: 1fr; }
+  .grid__col--full,
+  .grid__col--half,
+  .grid__col--small { grid-column: span 1; }
+  .topbar { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .content { padding: 16px; }
+}
+
+/* ------------------------------------------------------------------
+ * Widget shell
+ * ------------------------------------------------------------------ */
+.widget,
+.widget-empty,
+.widget-error {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.widget__header {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--fg-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.widget__mode {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  background: rgba(210, 187, 255, 0.1);
+  padding: 1px 6px;
+}
+
+.widget__footer {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+  margin-top: auto;
+}
+
+.widget-empty {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-style: dashed;
+  border-color: var(--border);
+  padding: 24px;
+  text-align: center;
+}
+
+.widget-loading {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 8px 0;
+}
+
+/* ------------------------------------------------------------------
+ * Error state
+ * ------------------------------------------------------------------ */
+.widget-error {
+  border-left: 3px solid var(--negative);
+}
+
+.widget-error__title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--negative);
+}
+
+.widget-error__detail {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  word-break: break-word;
+}
+
+.widget-error__retry {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+}
+
+/* ------------------------------------------------------------------
+ * Status dots (system_health_strip + reusable elsewhere)
+ * ------------------------------------------------------------------ */
+.dot,
+.health-dot__bullet {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.dot--ok,
+.health-dot--ok .health-dot__bullet { background: var(--positive); }
+
+.dot--warning,
+.health-dot--warning .health-dot__bullet { background: var(--warning); }
+
+.dot--error,
+.health-dot--error .health-dot__bullet { background: var(--negative); }
+
+.health-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+}
+
+.health-dot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+}
+
+.health-dot__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--fg-muted);
+}
+
+.health-dot__detail {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+}
+
+/* ------------------------------------------------------------------
+ * Tables
+ * ------------------------------------------------------------------ */
+.widget__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+}
+
+.widget__table thead tr {
+  background: var(--bg);
+}
+
+.widget__table th {
+  text-align: left;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 10px;
+  color: var(--fg-faint);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.widget__table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.widget__table tbody tr:hover {
+  background: rgba(210, 187, 255, 0.04);
+}
+
+/* ------------------------------------------------------------------
+ * Key-value lists (bankroll_summary, etc.)
+ * ------------------------------------------------------------------ */
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin: 0;
+}
+
+.kv dt {
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.kv dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------
+ * Tone helpers (used by widget render() output)
+ * ------------------------------------------------------------------ */
+.positive { color: var(--positive); }
+.negative { color: var(--negative); }
+.muted { color: var(--fg-muted); }
+
+/* ------------------------------------------------------------------
+ * Footer
+ * ------------------------------------------------------------------ */
+.footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.footer__time { color: var(--fg-muted); }
+.footer__note { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.footer__sep { opacity: 0.4; }
+
+/* ------------------------------------------------------------------
+ * Misc
+ * ------------------------------------------------------------------ */
+.empty-state {
+  padding: 32px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+svg.chart, svg.calibration, svg.brier, svg.roi-curve {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  background: transparent;
+}
