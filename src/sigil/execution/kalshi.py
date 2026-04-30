@@ -1,6 +1,7 @@
 import base64
 import time
 import httpx
+from typing import List, Optional
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
@@ -63,28 +64,53 @@ class KalshiAdapter(ExchangeAdapter):
         )
 
     async def place_order(
-        self, 
-        market_external_id: str, 
-        side: str, 
-        outcome: str, 
-        price: float, 
+        self,
+        market_external_id: str,
+        side: str,
+        outcome: str,
+        price: float,
         quantity: int,
-        order_type: str = "limit"
-    ) -> str:
+        order_type: str = "limit",
+        *,
+        client_order_id: Optional[str] = None,
+        mode: str = "live",
+    ) -> dict:
+        """Place an order. Returns a dict with at least `external_order_id` and
+        `status` so the OMS can update the local row uniformly across paper /
+        live. `client_order_id` is the idempotency key (REVIEW-DECISIONS 1E)
+        and is forwarded to Kalshi so retries dedupe server-side.
+        """
+        if mode == "paper":
+            return {
+                "external_order_id": f"paper_{client_order_id or 'no_coid'}",
+                "status": "filled",
+                "filled_quantity": quantity,
+                "avg_fill_price": price,
+                "fees": 0.0,
+            }
+
         path = "/portfolio/orders"
-        # Kalshi expects prices in cents
         payload = {
             "ticker": market_external_id,
             "action": "buy" if side == "buy" else "sell",
             "type": order_type,
             "yes_price": int(price * 100) if outcome == "yes" else 100 - int(price * 100),
             "count": quantity,
-            "side": outcome
+            "side": outcome,
         }
+        if client_order_id:
+            payload["client_order_id"] = client_order_id
         headers = self._get_headers("POST", path)
         response = await self.client.post(path, json=payload, headers=headers)
         response.raise_for_status()
-        return response.json()["order_id"]
+        body = response.json()
+        return {
+            "external_order_id": body.get("order_id"),
+            "status": body.get("status", "pending_on_exchange"),
+            "filled_quantity": body.get("filled_quantity", 0),
+            "avg_fill_price": body.get("avg_fill_price"),
+            "fees": body.get("fees", 0.0),
+        }
 
     async def cancel_order(self, external_order_id: str) -> bool:
         path = f"/portfolio/orders/{external_order_id}"
@@ -99,7 +125,7 @@ class KalshiAdapter(ExchangeAdapter):
         response.raise_for_status()
         return response.json()["order"]["status"]
 
-    async def sync_positions(self) -> List[dict]:
+    async def sync_positions(self) -> "List[dict]":
         path = "/portfolio/positions"
         headers = self._get_headers("GET", path)
         response = await self.client.get(path, headers=headers)
