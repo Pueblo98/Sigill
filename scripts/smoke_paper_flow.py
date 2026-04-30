@@ -145,22 +145,17 @@ async def main() -> None:
             _fail("client_order_id prefix", order.client_order_id)
         _ok(f"OMS wrote Order {order.id} ({order.quantity} contracts @ ${order.price:.3f}, status={order.status})")
 
-        # Manually mirror an open Position for the order so settlement has something to close.
-        # In production this is OMS's responsibility on fill; the OMS smoke path doesn't yet
-        # write Positions on paper-fill — track that gap explicitly.
-        pos = Position(
-            id=uuid4(),
-            platform="kalshi",
-            market_id=market.id,
-            mode="paper",
-            outcome=order.outcome,
-            quantity=order.filled_quantity,
-            avg_entry_price=float(order.avg_fill_price or order.price),
-            status="open",
-        )
-        session.add(pos)
-        await session.commit()
-        _ok(f"opened Position {pos.id} mirroring fill")
+        positions = (
+            await session.execute(
+                select(Position).where(Position.market_id == market.id)
+            )
+        ).scalars().all()
+        if len(positions) != 1:
+            _fail("expected 1 Position from OMS fill", f"got {len(positions)}")
+        pos = positions[0]
+        if pos.status != "open" or pos.quantity != order.filled_quantity:
+            _fail("Position mismatch", f"status={pos.status} qty={pos.quantity}")
+        _ok(f"OMS opened Position {pos.id} ({pos.quantity} @ ${float(pos.avg_entry_price):.3f})")
 
     handler = SettlementHandler(factory)
     settled = await handler.apply(

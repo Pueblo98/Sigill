@@ -9,6 +9,12 @@ from sigil.db import AsyncSessionLocal
 from sigil.execution.bankroll import snapshot_bankroll
 from sigil.ingestion.kalshi import KalshiDataSource
 from sigil.ingestion.manager import MarketManager
+from sigil.ingestion.settlement import (
+    KalshiSettlementStream,
+    SettlementHandler,
+    run_poll_fallback,
+    run_ws_subscriber,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,8 +47,34 @@ def build_scheduler() -> AsyncIOScheduler:
     return scheduler
 
 
+def build_settlement_tasks() -> list[asyncio.Task]:
+    """Spawn the WS subscriber + hourly polling fallback as background tasks.
+
+    Both default to off (`SETTLEMENT_WS_ENABLED=False`) so the orchestrator
+    can run on a paper-only laptop without trying to connect to Kalshi.
+    """
+    if not config.SETTLEMENT_WS_ENABLED:
+        logger.info("Settlement subscriber disabled (SETTLEMENT_WS_ENABLED=false).")
+        return []
+
+    source = KalshiSettlementStream()
+    handler = SettlementHandler(AsyncSessionLocal)
+    tasks = [
+        asyncio.create_task(run_ws_subscriber(source, handler), name="settlement_ws"),
+        asyncio.create_task(
+            run_poll_fallback(source, handler, AsyncSessionLocal),
+            name="settlement_poll",
+        ),
+    ]
+    logger.info(
+        "Started settlement subscriber + hourly polling fallback (interval=%ds)",
+        config.SETTLEMENT_FALLBACK_POLL_INTERVAL_SECONDS,
+    )
+    return tasks
+
+
 async def main_loop():
-    """Heartbeat: market sync + drawdown-input bankroll snapshots."""
+    """Heartbeat: market sync + drawdown bankroll snapshots + settlement."""
     logger.info("Initializing Sigil Orchestrator...")
 
     kalshi_source = KalshiDataSource()
@@ -55,6 +87,8 @@ async def main_loop():
         BANKROLL_SNAPSHOT_INTERVAL_SECONDS,
         config.DEFAULT_MODE,
     )
+
+    settlement_tasks = build_settlement_tasks()
 
     try:
         while True:
@@ -75,6 +109,10 @@ async def main_loop():
                 logger.exception(f"Unexpected error in main loop: {str(e)}")
                 await asyncio.sleep(30)
     finally:
+        for t in settlement_tasks:
+            t.cancel()
+        if settlement_tasks:
+            await asyncio.gather(*settlement_tasks, return_exceptions=True)
         scheduler.shutdown(wait=False)
 
 

@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator, Iterable, Optional, Protocol
 from uuid import UUID, uuid4
 
@@ -125,8 +125,15 @@ class SettlementHandler:
             prev = result.scalar_one_or_none()
             if prev is None:
                 continue
+            # Composite PK is (time, mode). On low-resolution clocks (Windows
+            # ~15ms) two rapid-fire settlements can collide; force a strictly-
+            # increasing timestamp by bumping past `prev.time` by 1µs.
+            now = datetime.now(timezone.utc)
+            prev_time = prev.time if prev.time.tzinfo is not None else prev.time.replace(tzinfo=timezone.utc)
+            if now <= prev_time:
+                now = prev_time + timedelta(microseconds=1)
             snap = BankrollSnapshot(
-                time=datetime.now(timezone.utc),
+                time=now,
                 mode=mode,
                 equity=float(prev.equity) + delta_realized,
                 realized_pnl_total=float(prev.realized_pnl_total) + delta_realized,

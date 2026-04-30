@@ -224,11 +224,14 @@ class OMS:
                 )
                 order.external_order_id = result.get("external_order_id")
                 exchange_status = result.get("status", OrderState.PENDING_ON_EXCHANGE)
-                await self.transition(order, _normalise(exchange_status))
+                normalised_status = _normalise(exchange_status)
+                await self.transition(order, normalised_status)
                 if exchange_status in (OrderState.FILLED, OrderState.PARTIALLY_FILLED):
                     order.filled_quantity = int(result.get("filled_quantity", order.quantity))
                     order.avg_fill_price = float(result.get("avg_fill_price", order.price))
                     order.fees = float(result.get("fees", 0.0))
+                if normalised_status == OrderState.FILLED:
+                    await self._open_or_update_position(order)
                 return order
             except Exception as exc:  # noqa: BLE001 — retried below
                 last_error = exc
@@ -266,7 +269,78 @@ class OMS:
         order.filled_quantity = order.quantity
         order.avg_fill_price = fill_price
         order.fees = 0.0
+        await self._open_or_update_position(order)
         return order
+
+    async def _open_or_update_position(self, order: Order) -> Position:
+        """Upsert the open Position for `order`.
+
+        Buys add to (or open) a position; sells reduce. Average entry price is
+        recomputed against the new lot. This runs synchronously inside the same
+        session so the order + position write atomically.
+
+        Sells against zero/negative quantity are NOT supported here — those
+        belong to a closing flow we don't model yet. We log and skip rather
+        than raise so a stray exchange report can't poison the OMS.
+        """
+        fill_qty = int(order.filled_quantity or 0)
+        if fill_qty <= 0:
+            return None  # type: ignore[return-value]
+        fill_price = float(order.avg_fill_price if order.avg_fill_price is not None else order.price)
+
+        stmt = select(Position).where(
+            Position.platform == order.platform,
+            Position.market_id == order.market_id,
+            Position.outcome == order.outcome,
+            Position.mode == order.mode,
+            Position.status == "open",
+        )
+        existing = (await self.session.execute(stmt)).scalar_one_or_none()
+
+        if order.side == "buy":
+            if existing is None:
+                pos = Position(
+                    id=uuid4(),
+                    platform=order.platform,
+                    market_id=order.market_id,
+                    mode=order.mode,
+                    outcome=order.outcome,
+                    quantity=fill_qty,
+                    avg_entry_price=fill_price,
+                    status="open",
+                )
+                self.session.add(pos)
+                return pos
+
+            new_qty = int(existing.quantity) + fill_qty
+            new_cost = (
+                int(existing.quantity) * float(existing.avg_entry_price)
+                + fill_qty * fill_price
+            )
+            existing.quantity = new_qty
+            existing.avg_entry_price = new_cost / new_qty if new_qty else 0.0
+            self.session.add(existing)
+            return existing
+
+        if order.side == "sell":
+            if existing is None:
+                logger.warning(
+                    "sell fill on %s %s with no open position; skipping position update",
+                    order.platform, order.market_id,
+                )
+                return None  # type: ignore[return-value]
+            close_qty = min(fill_qty, int(existing.quantity))
+            realized = close_qty * (fill_price - float(existing.avg_entry_price))
+            existing.quantity = int(existing.quantity) - close_qty
+            existing.realized_pnl = float(existing.realized_pnl or 0.0) + realized
+            if existing.quantity == 0:
+                existing.status = "closed"
+                existing.closed_at = datetime.now(timezone.utc)
+            self.session.add(existing)
+            return existing
+
+        logger.warning("unknown order side %r for position upsert", order.side)
+        return None  # type: ignore[return-value]
 
     # --- explicit lifecycle methods -------------------------------------- #
 
