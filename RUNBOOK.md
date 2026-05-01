@@ -445,6 +445,32 @@ Smoke check (writer → reader → `Backtester` end-to-end):
 
 ---
 
+## Backup & restore
+
+The day-to-day mechanics live in `runbooks/backup-restore.md` so they
+don't drown out the dev-loop runbook. tl;dr:
+
+- `scripts/backup_db.sh` — daily `pg_dump` → `age`-encrypted → S3.
+  Cron-driven; expects `DATABASE_URL`, `S3_BUCKET`, `AGE_RECIPIENT`
+  (+ optional `S3_ENDPOINT` / `S3_PROFILE` for non-AWS S3-compatible
+  storage).
+- `scripts/restore_db.sh <s3-key>` — pulls the latest dump, decrypts
+  with the same age key as `config.SOPS_AGE_KEY_FILE`, restores to
+  `$TARGET_DATABASE_URL`. Used in the quarterly drill.
+- The drill runs first business day of Jan/Apr/Jul/Oct on a throwaway
+  Postgres host (a Docker container is fine). Smoke-test the restored
+  DB with `scripts/smoke_paper_flow.py`. Log each drill in
+  `runbooks/backup-restore.md` §6 — the trend is the signal.
+
+The age key from decision 1F (`~/.config/sigil/age.key`) is reused for
+backup encryption; backup hosts only need the recipient public key,
+restore hosts need the private identity.
+
+WAL archiving / PITR is intentionally out of scope for v1 — RPO ≈ 24h.
+Revisit when a day's loss is unacceptable.
+
+---
+
 ## Notes / gaps
 
 These are not blockers; tracked in `TODOS.md`:

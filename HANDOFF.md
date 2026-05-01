@@ -1,7 +1,8 @@
 # Sigil — Context Handoff for Next Session
 
-**Date written:** 2026-05-01 (post TODO-1 + TODO-9 — Kalshi orderbook
-archive writer AND replay reader). Branch: `main`. Working dir
+**Date written:** 2026-05-01 (post TODO-1 + TODO-9 + TODO-3 — Kalshi
+orderbook archive writer/reader, plus DB backup-restore procedure).
+Branch: `main`. Working dir
 `C:\Users\simon\OneDrive\Desktop\Gamblerr`. Platform: Windows 11, bash shell,
 Python 3.12.
 
@@ -32,7 +33,7 @@ replay the conversation — read the docs it references.
 > 1. `REVIEW-DECISIONS.md` — 23 architectural decisions. The contract.
 >    Never redesign without explicit user approval.
 > 2. `HANDOFF.md` — this doc.
-> 3. `TODOS.md` — open follow-ups (TODO-3 + 2 deferred decisions; TODO-1 and TODO-9 just landed).
+> 3. `TODOS.md` — open follow-ups (TODO-10 first-drill operator-gate + 2 deferred decisions; TODO-1, TODO-3, TODO-9 just landed).
 > 4. `RUNBOOK.md` — three smoke flows (in-process, real-uvicorn, live
 >    operator stack) + the `persist_backtest_result` recipe.
 > 5. `git log --oneline -15` for current state.
@@ -66,7 +67,8 @@ replay the conversation — read the docs it references.
 **Tags:** `wave-1-verified`, `wave-2-complete`, `phase-5-0-complete`.
 
 ```
-TODO-9 close (next commit): replay reader + 9 tests + smoke
+TODO-3 close (next commit): backup-restore runbook + scripts
+30e919f TODO-9: replay reader for the orderbook archive
 b91e2ca TODO-1: Kalshi orderbook archive writer (per-market per-day JSONL)
 fcad6c9 refresh HANDOFF.md for next session
 2740c4e real uvicorn smoke + RUNBOOK refresh
@@ -110,7 +112,12 @@ d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
   `smoke_orderbook_archive.py` (TODO-1 writer end-to-end through
   `StreamProcessor._flush_once`),
   `smoke_archive_replay.py` (TODO-9 writer→reader→Backtester
-  round-trip).
+  round-trip),
+  `backup_db.sh` (cron-driven daily Postgres backup to S3 + age),
+  `restore_db.sh` (quarterly-drill restore from S3).
+- **`runbooks/backup-restore.md`** — TODO-3 canonical procedure: daily
+  backup, quarterly drill checklist, drill log table, age-key reuse
+  from decision 1F.
 - **`alembic/versions/`** — two migrations: `0001` (initial) and
   `7e992ada302b` (add backtest_results table). Don't edit; chain new
   ones.
@@ -141,6 +148,11 @@ d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
   market_id_map=...)` → chronologically sorted `PriceTick`s for
   `Backtester(data_iter=...)`. End-to-end smoke: writer → reader →
   Backtester runs cleanly.
+- **TODO-3**: DB backup + restore procedure. `runbooks/backup-restore.md`
+  + `scripts/backup_db.sh` + `scripts/restore_db.sh`. Pre-built for
+  Postgres + S3-compatible storage + age encryption (decision 1F key
+  reuse). Daily cron, quarterly drill, drill log inline. WAL/PITR
+  explicitly out of scope for v1.
 
 ---
 
@@ -148,17 +160,21 @@ d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
 
 ### Operator-gated (don't act unsupervised)
 
-1. **Phase 5.1 cutover**: DNS / Tailscale routing changes so the Python
+1. **TODO-10: First backup + restore drill.** The procedure +
+   scripts are ready (TODO-3 ship). Needs S3 bucket + cron/timer
+   install + 30-min drill on a throwaway Postgres host.
+   `runbooks/backup-restore.md` is the doc.
+2. **Phase 5.1 cutover**: DNS / Tailscale routing changes so the Python
    dashboard becomes canonical. Operational; needs operator action.
-2. **Phase 5.2 frontend deletion**: `git rm -r sigil-frontend/`. Only after
+3. **Phase 5.2 frontend deletion**: `git rm -r sigil-frontend/`. Only after
    the operator confirms parity by hitting both UIs side-by-side. Plan is
    in `polished-crafting-feigenbaum.md`.
 
 ### Code work, scope-clear
 
-- **TODO-3**: Quarterly DB backup + restore drill. Operational
-  (cron/CI/runbook) more than code. Document in `RUNBOOK.md` and add a
-  reminder cron.
+(Empty — the named code-work items have all landed. Next slice is
+either a polish pass, a fresh feature ask, or moving on to deferred
+decisions.)
 
 ### Polish / nice-to-have
 
@@ -176,7 +192,8 @@ d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
 ### Already done since the previous handoff
 
 - TODO-1 (Kalshi orderbook archive writer) — landed `b91e2ca`.
-- TODO-9 (replay reader → Backtester) — this slice.
+- TODO-9 (replay reader → Backtester) — landed `30e919f`.
+- TODO-3 (backup + restore procedure + scripts) — this slice.
 - TODO-4 (OMS opens Position on fill) — landed `7bfdc48`.
 - TODO-5 (settlement subscriber wired into `main.py`) — landed `7bfdc48`.
 - TODO-6 (theme injection via WidgetBase) — landed `4073800`.

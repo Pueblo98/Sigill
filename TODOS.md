@@ -41,26 +41,42 @@ recipe.
 
 ---
 
-## TODO-3: Quarterly DB backup + restore drill
+## TODO-3: ~~Quarterly DB backup + restore drill~~ — DONE (procedure shipped)
 
-**What:** (a) Set up automated daily Postgres backup to S3 with WAL archiving for PITR. (b) Schedule a quarterly calendar reminder to restore from backup on a fresh VM and verify integrity. Document each drill in `runbooks/backup-restore.md`.
+**Status:** Procedure shipped. `runbooks/backup-restore.md` is the
+canonical doc; `scripts/backup_db.sh` (cron-driven daily) and
+`scripts/restore_db.sh` (drill entrypoint) implement it. WAL archiving
+/ PITR explicitly out of scope for v1 — RPO ≈ 24h. The age key from
+decision 1F is reused for backup encryption.
 
-**Why:** Untested backups fail >50% of the time when they're actually needed (industry observation). Sigil is a money-bearing system; data loss = trade history loss = tax problem + recovery problem. PRD §11.4 mentions "automated daily backups to S3" but specifies no restore drill, no encryption, no test plan.
+**Operator-gated follow-up:** see TODO-10 — the *first* drill, plus
+provisioning the S3 bucket + cron/timer. Procedure is ready for the
+operator to execute.
 
-**Pros:**
-- Catches backup misconfig (wrong DB, bad credentials, missing tables) before you actually need it
-- Forces documentation of restore procedure
-- Cheap quarterly cadence — ~30 min per drill
+---
 
-**Cons:**
-- Calendar discipline required
-- Quarterly drill needs a fresh VM each time (small cost)
+## TODO-10: First backup + restore drill (operator-gated)
 
-**Context:** This is a classic "systems over heroes" gap. The 3am-tired version of you doesn't remember backup config; the documented restore drill does. Add to setup runbook + recurring quarterly task tracker.
+**What:** Run the procedure in `runbooks/backup-restore.md` end-to-end
+once. Specifically:
 
-**Depends on / blocked by:** Postgres + alembic migrations exist (Phase 1 wk 1-2).
+1. Provision an S3-compatible bucket (or AWS S3) for `S3_BUCKET`.
+2. Generate / reuse the age recipient public key from decision 1F;
+   put `AGE_RECIPIENT` in the backup host env, `AGE_KEY_FILE` on the
+   restore host.
+3. Install the systemd timer (or cron line) from
+   `runbooks/backup-restore.md` §3.
+4. Wait 24h, verify the daily upload landed.
+5. Run the §5 drill checklist on a throwaway Postgres host. Append the
+   result to the §6 drill log.
 
-**Estimated effort:** ~1 day to set up automated backups + WAL archiving + first drill. ~30 min per subsequent drill.
+**Why I can't do it:** needs cloud creds + a real machine. The
+procedure + scripts are ready.
+
+**When:** within 30 days of TODO-3 shipping. Recur quarterly thereafter
+(first business day of Jan/Apr/Jul/Oct).
+
+**Discovered:** TODO-3 ship, 2026-05-01.
 
 ---
 
