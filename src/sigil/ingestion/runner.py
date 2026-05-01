@@ -26,11 +26,13 @@ from sqlalchemy import select
 
 from sigil.config import config
 from sigil.db import AsyncSessionLocal, get_session, init_db
+from sigil.decision.loop import run_decision_loop
 from sigil.ingestion.kalshi import KalshiDataSource
 from sigil.ingestion.oddspipe import OddsPipeDataSource
 from sigil.ingestion.orderbook_archive import OrderbookArchive
 from sigil.ingestion.polymarket import PolymarketDataSource
 from sigil.models import Market, MarketPrice, SourceHealth
+from sigil.signals.elo_sports import generate_elo_predictions
 from sigil.signals.spread_arb import generate_spread_predictions
 
 logger = logging.getLogger(__name__)
@@ -375,6 +377,29 @@ async def _seed_polymarket(
     return poly_source.yes_token_ids
 
 
+async def _run_elo_sports_loop() -> None:
+    """Periodic Elo signal generator. Runs against open Kalshi NBA
+    markets seeded by the OddsPipe stream. Standalone — doesn't depend
+    on the OddsPipe data source instance.
+    """
+    await asyncio.sleep(20)
+    interval = max(60, int(config.ELO_SPORTS_INTERVAL_SECONDS))
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                n = await generate_elo_predictions(
+                    session,
+                    min_edge=config.ELO_SPORTS_MIN_EDGE,
+                    confidence=config.ELO_SPORTS_CONFIDENCE,
+                    dedup_window_seconds=interval,
+                )
+            if n > 0:
+                logger.info("elo_sports: wrote %d Prediction(s)", n)
+        except Exception:
+            logger.exception("elo_sports loop iteration failed")
+        await asyncio.sleep(interval)
+
+
 async def _run_spread_arb_loop(odds_source: OddsPipeDataSource) -> None:
     """Periodically poll /v1/spreads and emit Predictions.
 
@@ -479,6 +504,24 @@ async def run_ingestion() -> None:
                 config.SPREAD_ARB_MIN_SCORE,
                 config.SPREAD_ARB_MIN_EDGE,
             )
+
+    # ---- Elo sports signal (independent of OddsPipe) ------------------ #
+    if config.ELO_SPORTS_INTERVAL_SECONDS > 0:
+        coros.append(_run_elo_sports_loop())
+        logger.info(
+            "elo_sports signal enabled (interval=%ds, min_edge=%.2f)",
+            config.ELO_SPORTS_INTERVAL_SECONDS, config.ELO_SPORTS_MIN_EDGE,
+        )
+
+    # ---- Decision-engine loop ------------------------------------------ #
+    # Independent of OddsPipe — runs whenever any signal is producing
+    # Predictions (spread_arb, elo_sports, or future models).
+    if config.DECISION_LOOP_INTERVAL_SECONDS > 0:
+        coros.append(run_decision_loop(AsyncSessionLocal))
+        logger.info(
+            "decision_loop scheduled (interval=%ds, mode=%s)",
+            config.DECISION_LOOP_INTERVAL_SECONDS, config.DEFAULT_MODE,
+        )
     else:
         logger.warning(
             "ODDSPIPE_API_KEY not set — no markets will flow. "

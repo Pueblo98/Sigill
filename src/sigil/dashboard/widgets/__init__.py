@@ -8,6 +8,7 @@ adds the chart widgets.
 from sigil.dashboard.widgets import (  # noqa: F401  (registers widgets)
     backtest_results,
     bankroll_summary,
+    cross_platform_spreads,
     error_log,
     market_list,
     model_brier,

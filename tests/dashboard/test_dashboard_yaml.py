@@ -32,7 +32,7 @@ def test_dashboard_yaml_parses_cleanly():
 def test_dashboard_yaml_has_expected_pages():
     cfg = load_dashboard(DASHBOARD_YAML)
     names = [p.name for p in cfg.pages]
-    assert names == ["command-center", "markets", "models", "health"]
+    assert names == ["command-center", "markets", "spreads", "models", "health"]
 
 
 def test_dashboard_yaml_command_center_is_default():
@@ -48,9 +48,10 @@ def test_dashboard_yaml_widget_instances_build():
     widgets = build_widget_instances(cfg)
     # command-center: bankroll_summary, signal_queue, system_health_strip, recent_activity
     # markets: market_list
+    # spreads: cross_platform_spreads
     # models: open_positions
     # health: system_health_strip, recent_activity
-    assert len(widgets) == 8
+    assert len(widgets) == 9
     types = [w.type for w in widgets]
     assert types[:4] == [
         "bankroll_summary",
@@ -58,6 +59,7 @@ def test_dashboard_yaml_widget_instances_build():
         "system_health_strip",
         "recent_activity",
     ]
+    assert "cross_platform_spreads" in types
 
 
 def test_dashboard_yaml_theme_present():

@@ -55,6 +55,20 @@ class Config(BaseModel):
     # cross-platform arb is usually <0.20 absolute spread.
     SPREAD_ARB_MAX_YES_DIFF: float = 0.30
 
+    # Decision-engine periodic loop. Polls recent Predictions with edge
+    # >= MIN_EDGE_KALSHI that haven't been turned into Orders yet, calls
+    # DecisionEngine.evaluate() against each (which handles drawdown +
+    # Kelly sizing + OMS submission). Default cadence is short — orders
+    # need to fire while the price quote is still fresh.
+    DECISION_LOOP_INTERVAL_SECONDS: int = 60
+
+    # Elo sports signal — v0 scaffolding. Parses Kalshi NBA-game tickers
+    # and emits Predictions from a hardcoded ratings snapshot. Set to 0 to
+    # disable (e.g. while waiting for a real game-results feed).
+    ELO_SPORTS_INTERVAL_SECONDS: int = 900   # 15 min cadence
+    ELO_SPORTS_MIN_EDGE: float = 0.05
+    ELO_SPORTS_CONFIDENCE: float = 0.60
+
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHAT_ID: Optional[str] = None
     TELEGRAM_CHAT_CRITICAL: Optional[str] = None

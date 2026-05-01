@@ -44,6 +44,17 @@ pages:
             sort: volume_desc
             limit: 100
 
+  - name: spreads
+    title: Cross-platform spreads
+    columns:
+      - size: full
+        widgets:
+          - type: cross_platform_spreads
+            cache: 5m
+            limit: 25
+            min_score: 95
+            max_yes_diff: 0.30
+
   - name: models
     title: Model Performance
     # F2 widgets (model_brier, model_calibration, model_roi_curve) will move
