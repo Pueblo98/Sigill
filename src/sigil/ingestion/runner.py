@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sigil.config import config
 from sigil.db import AsyncSessionLocal, get_session, init_db
 from sigil.ingestion.kalshi import KalshiDataSource
+from sigil.ingestion.orderbook_archive import OrderbookArchive
 from sigil.ingestion.polymarket import PolymarketDataSource
 from sigil.models import Market, MarketPrice, SourceHealth
 
@@ -180,11 +181,13 @@ class StreamProcessor:
         platform: str,
         cache_file: str,
         resolver: Optional[MarketIdResolver] = None,
+        archive: Optional[OrderbookArchive] = None,
     ) -> None:
         self.source_name = source_name
         self.platform = platform
         self.cache_file = cache_file
         self.resolver = resolver or MarketIdResolver()
+        self.archive = archive
         self.batch: list[dict] = []
         self.dropped_unknown_market = 0
 
@@ -208,6 +211,14 @@ class StreamProcessor:
                     f.write(json.dumps(item_copy, default=str) + "\n")
         except Exception:
             logger.exception("failed writing JSONL lake for %s", self.source_name)
+
+        if self.archive is not None:
+            try:
+                self.archive.write_batch(self.platform, current_batch)
+            except Exception:
+                logger.exception(
+                    "failed writing orderbook archive for %s", self.source_name
+                )
 
         async with get_session() as session:
             inserted = 0
@@ -304,19 +315,38 @@ async def run_ingestion() -> None:
     kalshi_ids = await _seed_kalshi(kalshi_source, resolver)
     await health.record("kalshi", success=True, records_fetched=len(kalshi_ids))
 
+    archive: Optional[OrderbookArchive] = None
+    if config.ORDERBOOK_ARCHIVE_ENABLED:
+        os.makedirs(config.ORDERBOOK_ARCHIVE_DIR, exist_ok=True)
+        archive = OrderbookArchive(
+            root_dir=config.ORDERBOOK_ARCHIVE_DIR,
+            max_open_handles=config.ORDERBOOK_ARCHIVE_MAX_OPEN_HANDLES,
+        )
+        logger.info(
+            "orderbook archive enabled: dir=%s max_open=%d",
+            config.ORDERBOOK_ARCHIVE_DIR,
+            config.ORDERBOOK_ARCHIVE_MAX_OPEN_HANDLES,
+        )
+
     kalshi_processor = StreamProcessor(
-        "Kalshi", "kalshi", os.path.join(RAW_DATA_DIR, "kalshi_ticks.jsonl"), resolver
+        "Kalshi", "kalshi", os.path.join(RAW_DATA_DIR, "kalshi_ticks.jsonl"),
+        resolver, archive=archive,
     )
     poly_processor = StreamProcessor(
-        "Polymarket", "polymarket", os.path.join(RAW_DATA_DIR, "polymarket_ticks.jsonl"), resolver
+        "Polymarket", "polymarket", os.path.join(RAW_DATA_DIR, "polymarket_ticks.jsonl"),
+        resolver, archive=archive,
     )
 
-    await asyncio.gather(
-        kalshi_processor.consume_stream(kalshi_source, kalshi_ids),
-        poly_processor.consume_stream(poly_source, []),
-        kalshi_processor.flush_batch(),
-        poly_processor.flush_batch(),
-    )
+    try:
+        await asyncio.gather(
+            kalshi_processor.consume_stream(kalshi_source, kalshi_ids),
+            poly_processor.consume_stream(poly_source, []),
+            kalshi_processor.flush_batch(),
+            poly_processor.flush_batch(),
+        )
+    finally:
+        if archive is not None:
+            archive.close()
 
 
 if __name__ == "__main__":

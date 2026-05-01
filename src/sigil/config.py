@@ -74,5 +74,18 @@ class Config(BaseModel):
     # loading dashboard.yaml or starting the refresh job.
     DASHBOARD_ENABLED: bool = False
 
+    # Phase 1 reliability: per-market per-day Kalshi orderbook archive for
+    # future replay-into-backtester (TODO-1). Off by default; live deploys
+    # flip on. Reader is TODO-9.
+    ORDERBOOK_ARCHIVE_ENABLED: bool = False
+    ORDERBOOK_ARCHIVE_DIR: str = Field(
+        default_factory=lambda: os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "data",
+            "orderbook_archive",
+        )
+    )
+    ORDERBOOK_ARCHIVE_MAX_OPEN_HANDLES: int = 256
+
 
 config = Config()

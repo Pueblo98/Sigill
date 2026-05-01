@@ -352,6 +352,47 @@ The widget on `/page/models` shows the most recent row.
 
 ---
 
+## Enabling the orderbook archive
+
+Off by default. Flip on for live deploys to capture replay-into-backtester
+input alongside the existing `data/raw/kalshi_ticks.jsonl` lake. The
+archive runs as a side effect of `StreamProcessor._flush_once()`, so no
+new processes; one shared writer per orchestrator.
+
+```python
+# src/sigil/config.py — Config is BaseModel (no env auto-load)
+ORDERBOOK_ARCHIVE_ENABLED: bool = True
+ORDERBOOK_ARCHIVE_DIR: str = "/var/lib/sigil/orderbook_archive"  # default is repo data/orderbook_archive
+ORDERBOOK_ARCHIVE_MAX_OPEN_HANDLES: int = 256
+```
+
+Disk layout:
+
+    <ORDERBOOK_ARCHIVE_DIR>/kalshi/<external_id>/<YYYY-MM-DD>.jsonl
+
+Each line is the full tick dict (best-bid/ask scalars + raw `bids`/`asks`
+ladder + last_price + source + UTC `time`). External-id directory names
+are sanitized; `..` substrings are collapsed to `__` so a hostile market
+ticker can't escape the archive root.
+
+Sizing rule of thumb: ~few MB per market per day under heavy flow.
+Files are uncompressed JSONL; deletion / compression is manual until a
+`prune_orderbook_archive` helper lands (TODO-9 follow-up).
+
+Smoke check:
+
+```bash
+.venv/Scripts/python.exe scripts/smoke_orderbook_archive.py
+```
+
+Asserts that two markets routed through one batch each land in their
+own per-day file with depth + renamed `external_id` preserved.
+
+The reader (replay archive into `Backtester`) is **not yet built**;
+the JSONL format is the contract. See TODO-9 in `TODOS.md`.
+
+---
+
 ## Notes / gaps
 
 These are not blockers; tracked in `TODOS.md`:

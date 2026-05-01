@@ -4,11 +4,17 @@ Captured from /plan-eng-review on 2026-04-30. Each entry has the context a futur
 
 ---
 
-## TODO-1: ~~Archive Kalshi order book snapshots~~ → BUILD NOW (Phase 1)
+## TODO-1: ~~Archive Kalshi order book snapshots~~ — DONE
 
-**Status:** Promoted to in-scope per review. Bundle into Phase 1 alongside ingest reliability work.
+**Status:** Shipped. `OrderbookArchive` writes per-market per-day JSONL
+at `<ORDERBOOK_ARCHIVE_DIR>/kalshi/<external_id>/<YYYY-MM-DD>.jsonl`,
+hooked into `StreamProcessor._flush_once()` and gated by
+`config.ORDERBOOK_ARCHIVE_ENABLED` (default `False`). Kalshi WS payloads
+now carry the raw `bids`/`asks` ladder so depth survives. Reader =
+TODO-9.
 
-(Left in TODOS.md as a tracking pointer; remove once shipped.)
+See `RUNBOOK.md` ("Enabling the orderbook archive") for the operator
+recipe.
 
 ---
 
@@ -134,6 +140,31 @@ roi, max_drawdown, sharpe, equity_curve_json, trades_json), an alembic
 migration, and a `persist_backtest_result(session, result)` helper.
 
 **Discovered:** F2 report, 2026-04-30.
+
+---
+
+## TODO-9: Replay reader — orderbook archive → Backtester
+
+**What:** A reader that streams `<ORDERBOOK_ARCHIVE_DIR>/kalshi/<ext>/<date>.jsonl`
+files into `Iterable[PriceTick]` for `Backtester(data_iter=...)`. Resolve
+`(platform, external_id) → Market.id` (UUID) once per market per run,
+cache it, then yield ticks chronologically. Filter by date range / market
+list at the file-glob layer.
+
+**Why:** TODO-1 just shipped the writer; the format is the contract. The
+reader unlocks "did this strategy work last week" against the live
+Kalshi tape instead of synthetic fixtures.
+
+**Where to put it:** `src/sigil/backtesting/replay.py`. The backtester
+takes `Iterable[Event]` (`engine.py:132-149`); a generator that yields
+`PriceTick` is enough — no new framework needed.
+
+**Format reminder:** each JSONL line has `external_id`, `time` (ISO UTC),
+`bid`, `ask`, `last_price`, `volume_24h`, `bids`, `asks`, `source`.
+Reader pulls `bid`/`ask`/`last_price`/`volume_24h` into `PriceTick`;
+`bids`/`asks` are reserved for a future depth-aware backtester.
+
+**Discovered:** TODO-1 ship, 2026-05-01.
 
 ---
 

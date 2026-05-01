@@ -1,7 +1,7 @@
 # Sigil — Context Handoff for Next Session
 
-**Date written:** 2026-04-30 (post Phase 5.0 + framework polish + TODO-8 +
-real-uvicorn smoke). Branch: `main`. Working dir
+**Date written:** 2026-05-01 (post TODO-1 — Kalshi orderbook archive
+writer). Branch: `main`. Working dir
 `C:\Users\simon\OneDrive\Desktop\Gamblerr`. Platform: Windows 11, bash shell,
 Python 3.12.
 
@@ -24,7 +24,7 @@ replay the conversation — read the docs it references.
 > for parity verification — **don't delete it**, that's Phase 5.2 work and
 > needs operator sign-off.
 >
-> **Test bar:** 357/357 passing under `.venv/Scripts/python.exe -m pytest`.
+> **Test bar:** 365/365 passing under `.venv/Scripts/python.exe -m pytest`.
 > Don't let regressions land unnoticed.
 >
 > **READ FIRST, IN ORDER:**
@@ -32,7 +32,7 @@ replay the conversation — read the docs it references.
 > 1. `REVIEW-DECISIONS.md` — 23 architectural decisions. The contract.
 >    Never redesign without explicit user approval.
 > 2. `HANDOFF.md` — this doc.
-> 3. `TODOS.md` — open follow-ups (TODO-1, TODO-3, plus 2 deferred decisions).
+> 3. `TODOS.md` — open follow-ups (TODO-3, TODO-9, plus 2 deferred decisions).
 > 4. `RUNBOOK.md` — three smoke flows (in-process, real-uvicorn, live
 >    operator stack) + the `persist_backtest_result` recipe.
 > 5. `git log --oneline -15` for current state.
@@ -62,10 +62,12 @@ replay the conversation — read the docs it references.
 
 ## Current state
 
-**Tests:** 357/357 passing.
+**Tests:** 365/365 passing (357 prior + 8 new for orderbook archive).
 **Tags:** `wave-1-verified`, `wave-2-complete`, `phase-5-0-complete`.
 
 ```
+TODO-1 close (this slice): orderbook archive writer + 8 tests + smoke
+fcad6c9 refresh HANDOFF.md for next session
 2740c4e real uvicorn smoke + RUNBOOK refresh
 778aeca TODO-8: persist BacktestResult, light up F2's backtest_results widget
 4073800 phase 5 framework polish: TODO-6 + TODO-7 + HANDOFF refresh
@@ -75,7 +77,6 @@ d460f43 phase 5.0: log framework follow-ups (TODO 6/7/8)
 d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
 7bfdc48 close TODO-4 + TODO-5 from W2.4 smoke
 dc0f919 wave 2: reconcile + verify + smoke + critical-path tests
-8040a4f wave 1 verify: clear reconciliation freeze on exchange recovery
 ```
 
 ### What's where
@@ -95,9 +96,15 @@ dc0f919 wave 2: reconcile + verify + smoke + critical-path tests
   helper writing to the `backtest_results` table.
 - **`dashboard.yaml`** at repo root — operator-editable widget config. 4
   pages: command-center (default), markets, models, health.
+- **`src/sigil/ingestion/orderbook_archive.py`** — TODO-1 writer.
+  Per-market per-day JSONL at
+  `<ORDERBOOK_ARCHIVE_DIR>/kalshi/<external_id>/<YYYY-MM-DD>.jsonl`.
+  LRU-bounded handle cache; gated by `config.ORDERBOOK_ARCHIVE_ENABLED`.
 - **`scripts/`** — `smoke_paper_flow.py` (paper trade end-to-end),
   `smoke_api.py` (TestClient endpoint hit), `smoke_uvicorn.py` (real port-
-  bound uvicorn launcher with config override).
+  bound uvicorn launcher with config override),
+  `smoke_orderbook_archive.py` (TODO-1 writer end-to-end through
+  `StreamProcessor._flush_once`).
 - **`alembic/versions/`** — two migrations: `0001` (initial) and
   `7e992ada302b` (add backtest_results table). Don't edit; chain new
   ones.
@@ -121,6 +128,9 @@ dc0f919 wave 2: reconcile + verify + smoke + critical-path tests
 - **TODO-8**: BacktestResult ORM table + alembic migration + persist
   helper. F2's `backtest_results` widget now reads via SQLAlchemy ORM
   with `OperationalError` fallback.
+- **TODO-1**: Kalshi orderbook archive writer. Per-market per-day JSONL,
+  raw depth preserved, gated by `ORDERBOOK_ARCHIVE_ENABLED` (default
+  off). Reader to come (TODO-9).
 
 ---
 
@@ -136,10 +146,11 @@ dc0f919 wave 2: reconcile + verify + smoke + critical-path tests
 
 ### Code work, scope-clear
 
-- **TODO-1**: Archive Kalshi order book snapshots to disk for replay.
-  Promoted to in-scope by the eng review but never started. Disjoint from
-  dashboard work. Probably ~1-2 days: append-only JSONL files keyed by
-  market + day, rotated nightly. Reader for replay-into-backtester later.
+- **TODO-9**: Replay reader — `<archive>/kalshi/<ext>/<date>.jsonl` →
+  `Iterable[PriceTick]` for `Backtester(data_iter=...)`. The format is
+  the contract; engine.py:132-149 takes any iterable of
+  PriceTick/SettlementEvent. Land at `src/sigil/backtesting/replay.py`.
+  Likely ~half-day.
 - **TODO-3**: Quarterly DB backup + restore drill. Operational
   (cron/CI/runbook) more than code. Document in `RUNBOOK.md` and add a
   reminder cron.
@@ -159,6 +170,7 @@ dc0f919 wave 2: reconcile + verify + smoke + critical-path tests
 
 ### Already done since the previous handoff
 
+- TODO-1 (Kalshi orderbook archive writer) — this slice.
 - TODO-4 (OMS opens Position on fill) — landed `7bfdc48`.
 - TODO-5 (settlement subscriber wired into `main.py`) — landed `7bfdc48`.
 - TODO-6 (theme injection via WidgetBase) — landed `4073800`.
@@ -212,6 +224,12 @@ dc0f919 wave 2: reconcile + verify + smoke + critical-path tests
   schema. Don't migrate it forward — start from a fresh DB.
 - **Legacy `tests/test_*/` directories** are empty stubs. They don't
   collect any tests. Safe to ignore or remove.
+- **OrderbookArchive runs as a side effect of `StreamProcessor._flush_once()`**.
+  No separate scheduler. Date in filename means rotation is lazy and
+  self-healing — the LRU evicts idle handles, opens a new file when the
+  date rolls over. `KalshiDataSource.stream_prices()` now yields raw
+  `bids`/`asks` ladder lists alongside scalar best-bid/ask; downstream
+  consumers ignore the new keys, the archive captures them.
 
 ---
 

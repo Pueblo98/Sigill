@@ -56,7 +56,12 @@ class KalshiDataSource(DataSource):
                         "time": pd.Timestamp.utcnow(),
                         "volume_24h": None,
                         "open_interest": None,
-                        "source": "exchange_ws"
+                        "source": "exchange_ws",
+                        # Raw Kalshi ladder ([price_cents, size]); preserved for
+                        # the orderbook archive (TODO-1). Downstream consumers
+                        # ignore these keys.
+                        "bids": bids,
+                        "asks": asks,
                     }
 
     def normalize(self, raw_data: List[dict]) -> pd.DataFrame:
