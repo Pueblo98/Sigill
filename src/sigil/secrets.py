@@ -28,10 +28,38 @@ logger = logging.getLogger(__name__)
 _INJECTABLE_KEYS = (
     "KALSHI_API_KEY",
     "KALSHI_SECRET",
+    "KALSHI_KEY_ID",
+    "KALSHI_PRIVATE_KEY_PEM",
+    "KALSHI_PRIVATE_KEY_PATH",
     "POLYMARKET_API_KEY",
+    "ODDSPIPE_API_KEY",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
 )
+
+
+_LOCAL_SECRETS_PATH = "secrets.local.yaml"
+
+
+def load_local_secrets() -> Dict[str, Any]:
+    """Plain-YAML fallback for dev when sops/age aren't set up.
+
+    Reads ``./secrets.local.yaml`` (gitignored) if present. Returns ``{}``
+    when missing or malformed. ``load_secrets`` already wins over this
+    (sops-encrypted secrets take precedence) when both exist.
+    """
+    if not os.path.exists(_LOCAL_SECRETS_PATH):
+        return {}
+    try:
+        with open(_LOCAL_SECRETS_PATH, "r", encoding="utf-8") as f:
+            parsed = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        logger.warning("Failed to read %s: %s", _LOCAL_SECRETS_PATH, exc)
+        return {}
+    if not isinstance(parsed, dict):
+        logger.warning("%s did not parse as a mapping; ignoring.", _LOCAL_SECRETS_PATH)
+        return {}
+    return parsed
 
 
 def load_secrets() -> Dict[str, Any]:
@@ -108,3 +136,20 @@ def inject_into_config(secrets: Dict[str, Any]) -> None:
             setattr(config, key, secrets[key])
         except Exception as exc:
             logger.warning(f"Could not set config.{key}: {exc}")
+
+
+def load_and_inject() -> int:
+    """One-call helper: read sops + ``secrets.local.yaml`` and inject.
+
+    sops-decrypted values take precedence over the local YAML; existing
+    config / env values still win over both. Returns the number of
+    distinct secret keys that ended up applied to the in-memory config.
+    """
+    local = load_local_secrets()
+    sops = load_secrets()
+    merged = {**local, **sops}  # sops wins on conflict
+    inject_into_config(merged)
+    applied = sum(1 for k in _INJECTABLE_KEYS if k in merged and getattr(config, k, None))
+    if applied:
+        logger.info("loaded %d secret(s) from sops/local YAML", applied)
+    return applied

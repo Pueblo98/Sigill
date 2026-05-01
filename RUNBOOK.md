@@ -236,57 +236,73 @@ Live ingestion is one foreground process:
 .venv/Scripts/python.exe scripts/start_ingestion.py
 ```
 
-That spins up two coroutines concurrently:
+#### Default path: OddsPipe (REST aggregator)
 
-- `sigil.main.main_loop` — Kalshi REST market sync every ~60s, plus
-  the bankroll snapshot APScheduler job. Optional settlement WS
-  subscriber when `SETTLEMENT_WS_ENABLED=true`.
-- `sigil.ingestion.runner.run_ingestion` — Kalshi + Polymarket WS
-  price streams, batched into the JSONL lake under `data/raw/` and
-  the `MarketPrice` table. Honors `ORDERBOOK_ARCHIVE_ENABLED` for the
-  per-market per-day archive (TODO-1).
+OddsPipe (`https://oddspipe.com/v1/markets`) wraps both Kalshi and
+Polymarket behind one `X-API-Key`, so a Kalshi sign-up is not
+required. Decision 4A pegs freshness at 5 minutes; the script polls
+each platform every `ODDSPIPE_POLL_SECONDS` (default 300).
 
-Ctrl+C cancels both.
+Drop the key in `secrets.local.yaml` (gitignored — see §3a):
 
-#### Kalshi credentials (required for live Kalshi)
-
-The current Kalshi API uses RSA-PSS-SHA256 signed headers. Provision
-a key at kalshi.com → Profile → API Keys → "Create new key" — you get
-a UUID-shaped key id and a one-time-download PEM private key file.
-Drop them into `config.py` (not env vars — `Config` is `BaseModel`,
-not `BaseSettings`):
-
-```python
-KALSHI_KEY_ID: Optional[str] = "00000000-0000-0000-0000-000000000000"
-KALSHI_PRIVATE_KEY_PATH: Optional[str] = "/abs/path/to/kalshi-key.pem"
-# OR (less common — paste the PEM inline)
-# KALSHI_PRIVATE_KEY_PEM: Optional[str] = """-----BEGIN PRIVATE KEY-----\n..."""
+```yaml
+ODDSPIPE_API_KEY: <your-oddspipe-key>
 ```
 
-Without these, the Kalshi adapter logs a warning and returns no
-markets. Polymarket needs no auth — its read-only public feed flows
-either way.
+`load_and_inject()` picks that up on startup and injects into
+`config.ODDSPIPE_API_KEY`. Setting the key auto-enables OddsPipe;
+clear it to disable. Each cycle yields ~189 ticks across 200 markets
+(100 per platform). Ticks land in `MarketPrice` with
+`source = 'oddspipe'`.
+
+#### Opt-in: direct exchange WebSocket adapters
+
+The direct Kalshi + Polymarket WS adapters live in the codebase but
+are off by default. Flip `config.DIRECT_EXCHANGE_WS_ENABLED = True`
+to spawn them alongside OddsPipe — useful only if you want
+sub-second tick resolution from Polymarket and have Kalshi RSA-PSS
+creds ready. Both paths land in `MarketPrice` with
+`source = 'exchange_ws'` so they coexist with OddsPipe ticks
+(`source = 'oddspipe'`).
+
+Kalshi creds (only needed when `DIRECT_EXCHANGE_WS_ENABLED=True`):
+provision at kalshi.com → Profile → API Keys → "Create new key" — you
+get a UUID-shaped key id and a one-time-download PEM private key file.
+Add to `secrets.local.yaml`:
+
+```yaml
+KALSHI_KEY_ID: 00000000-0000-0000-0000-000000000000
+KALSHI_PRIVATE_KEY_PATH: /abs/path/to/kalshi-key.pem
+```
+
+Without these, the Kalshi WS adapter logs a warning and yields
+nothing. Polymarket WS works without auth.
+
+Ctrl+C cancels everything cleanly.
 
 #### Provider quirks worth knowing
 
+- **Kalshi REST default `/markets` is mostly junk.** Returns
+  multi-leg combo "parlay" tickers (`KXMVECROSSCATEGORY-...`,
+  `KXMVESPORTSMULTIGAMEEXTENDED-...`) first, with zero volume. Anyone
+  enabling the direct path probably wants to filter `KXMVE*` out.
+  Not relevant for the OddsPipe default — OddsPipe's discovery is
+  curated.
 - **Kalshi REST** lives at `api.elections.kalshi.com` (the older
-  `trading-api.kalshi.com` is dead — returns 401 with a redirect
-  message).
-- **Polymarket REST** uses `gamma-api.polymarket.com/markets?active=
-  true&closed=false&order=volume&ascending=false`. The CLOB
-  `/markets` endpoint returns *historical* archives first and is
+  `trading-api.kalshi.com` is dead).
+- **Polymarket REST** uses `gamma-api.polymarket.com/markets`. The
+  CLOB `/markets` endpoint returns *historical* archives first and is
   unsuitable for discovery.
-- **Polymarket WS** subscribes on token ids (the YES/NO outcome
-  tokens), not condition ids. The runner seeds a YES-token list from
-  gamma's `outcomes`/`clobTokenIds` and only emits ticks for the YES
-  side (decision 1C — read-only; binary markets only). NO-side
-  updates are ignored.
+- **Polymarket WS** subscribes on token ids (YES/NO outcome tokens),
+  not condition ids. The runner seeds YES tokens from gamma's
+  `outcomes`/`clobTokenIds` and only emits YES-side ticks (decision
+  1C — read-only; binary markets only).
 - **Within-batch dedup**: Polymarket can emit multiple `price_changes`
   in one WS frame; we keep only the latest tick per `(market_id,
   source)` per 1-second batch when writing to `MarketPrice` (composite
-  PK is `(time, market_id, source)`). The full record is preserved in
-  the JSONL lake and the orderbook archive — only the relational
-  table dedups.
+  PK is `(time, market_id, source)`). Full record is preserved in the
+  JSONL lake and the orderbook archive — only the relational table
+  dedups.
 
 If you're just dogfooding the dashboard with no live data, skip
 ingestion and run `scripts/seed_dev_data.py` instead — that fills the

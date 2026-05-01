@@ -41,5 +41,7 @@ age.key
 .env
 .env.local
 .env.*.local
+# Local dev fallback for API keys when sops/age aren't set up.
+secrets.local.yaml
 
 .claude/worktrees/

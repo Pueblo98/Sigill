@@ -38,6 +38,7 @@ if SRC not in sys.path:
 from sigil.config import config
 from sigil.ingestion.runner import run_ingestion
 from sigil.main import main_loop
+from sigil.secrets import load_and_inject
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,13 +48,17 @@ log = logging.getLogger("sigil.start_ingestion")
 
 
 def _preflight() -> None:
+    load_and_inject()  # sops + secrets.local.yaml
     print("--- Sigil ingestion bootstrap ---")
     print(f"  DATABASE_URL                  {config.DATABASE_URL}")
     print(f"  ORDERBOOK_ARCHIVE_ENABLED     {config.ORDERBOOK_ARCHIVE_ENABLED}")
     print(f"  SETTLEMENT_WS_ENABLED         {config.SETTLEMENT_WS_ENABLED}")
-    have_kid = bool(config.KALSHI_KEY_ID)
-    have_key = bool(config.KALSHI_PRIVATE_KEY_PEM or config.KALSHI_PRIVATE_KEY_PATH)
-    print(f"  Kalshi auth (KEY_ID + key)    {'configured' if (have_kid and have_key) else 'MISSING — Kalshi will be skipped'}")
+    print(f"  OddsPipe                      {'enabled (key configured)' if config.ODDSPIPE_API_KEY else 'disabled (no ODDSPIPE_API_KEY)'}")
+    print(f"  Direct exchange WS            {'enabled' if config.DIRECT_EXCHANGE_WS_ENABLED else 'disabled (set DIRECT_EXCHANGE_WS_ENABLED=true to opt in)'}")
+    if config.DIRECT_EXCHANGE_WS_ENABLED:
+        have_kid = bool(config.KALSHI_KEY_ID)
+        have_key = bool(config.KALSHI_PRIVATE_KEY_PEM or config.KALSHI_PRIVATE_KEY_PATH)
+        print(f"    └ Kalshi auth (KEY_ID+key)  {'configured' if (have_kid and have_key) else 'MISSING — Kalshi WS will skip'}")
     print()
 
 

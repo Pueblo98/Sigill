@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sigil.config import config
 from sigil.db import AsyncSessionLocal, get_session, init_db
 from sigil.ingestion.kalshi import KalshiDataSource
+from sigil.ingestion.oddspipe import OddsPipeDataSource
 from sigil.ingestion.orderbook_archive import OrderbookArchive
 from sigil.ingestion.polymarket import PolymarketDataSource
 from sigil.models import Market, MarketPrice, SourceHealth
@@ -245,7 +246,12 @@ class StreamProcessor:
             inserted = 0
             for item in latest_per_key.values():
                 external_id = item.get("market_id")
-                market_id = await self.resolver.resolve(session, self.platform, external_id)
+                # Per-tick platform — OddsPipe is a single source covering
+                # both kalshi and polymarket, so tick.platform may differ
+                # from self.platform. Falls back to self.platform when the
+                # tick doesn't carry one (legacy WS adapters).
+                tick_platform = item.get("platform") or self.platform
+                market_id = await self.resolver.resolve(session, tick_platform, external_id)
                 if market_id is None:
                     self.dropped_unknown_market += 1
                     continue
@@ -276,7 +282,12 @@ class StreamProcessor:
         return inserted
 
     async def consume_stream(self, source: Any, market_ids: list[str]) -> None:
-        logger.info("[%s] streaming %d markets", self.source_name, len(market_ids))
+        # Some sources (OddsPipe) ignore market_ids and discover their own
+        # set per cycle; the count is informational only.
+        if market_ids:
+            logger.info("[%s] streaming %d markets", self.source_name, len(market_ids))
+        else:
+            logger.info("[%s] streaming (source-driven discovery)", self.source_name)
         try:
             async for tick in source.stream_prices(market_ids):
                 self.batch.append(tick)
@@ -363,22 +374,34 @@ async def _seed_polymarket(
     return poly_source.yes_token_ids
 
 
+async def _seed_oddspipe(
+    odds_source: OddsPipeDataSource, resolver: MarketIdResolver
+) -> int:
+    """Fetch one page from each platform via OddsPipe, upsert markets per
+    platform, prime the resolver. Returns the total count seeded.
+    """
+    try:
+        raw = await odds_source.fetch()
+        df = odds_source.normalize(raw)
+    except Exception as exc:
+        logger.warning("OddsPipe fetch failed (%s)", exc)
+        return 0
+    if df.empty:
+        return 0
+    n = 0
+    for platform in df["platform"].unique().tolist():
+        platform_rows = df[df["platform"] == platform].to_dict("records")
+        seeded = await _upsert_markets(platform_rows, platform, resolver)
+        n += len(seeded)
+    return n
+
+
 async def run_ingestion() -> None:
     await init_db()
     os.makedirs(RAW_DATA_DIR, exist_ok=True)
 
-    kalshi_source = KalshiDataSource()
-    poly_source = PolymarketDataSource()
     health = SourceHealthWriter()
     resolver = MarketIdResolver()
-
-    kalshi_ids = await _seed_kalshi(kalshi_source, resolver)
-    await health.record("kalshi", success=True, records_fetched=len(kalshi_ids))
-
-    poly_token_ids = await _seed_polymarket(poly_source, resolver)
-    await health.record(
-        "polymarket", success=True, records_fetched=len(poly_token_ids)
-    )
 
     archive: Optional[OrderbookArchive] = None
     if config.ORDERBOOK_ARCHIVE_ENABLED:
@@ -393,22 +416,75 @@ async def run_ingestion() -> None:
             config.ORDERBOOK_ARCHIVE_MAX_OPEN_HANDLES,
         )
 
-    kalshi_processor = StreamProcessor(
-        "Kalshi", "kalshi", os.path.join(RAW_DATA_DIR, "kalshi_ticks.jsonl"),
-        resolver, archive=archive,
-    )
-    poly_processor = StreamProcessor(
-        "Polymarket", "polymarket", os.path.join(RAW_DATA_DIR, "polymarket_ticks.jsonl"),
-        resolver, archive=archive,
-    )
+    coros: list = []
 
-    try:
-        await asyncio.gather(
+    # ---- OddsPipe (default path) ---------------------------------------- #
+    odds_source: Optional[OddsPipeDataSource] = None
+    if config.ODDSPIPE_API_KEY:
+        odds_source = OddsPipeDataSource(
+            api_key=config.ODDSPIPE_API_KEY,
+            base_url=config.ODDSPIPE_BASE_URL,
+            markets_per_platform=config.ODDSPIPE_MARKETS_PER_PLATFORM,
+        )
+        odds_seeded = await _seed_oddspipe(odds_source, resolver)
+        await health.record(
+            "oddspipe", success=True, records_fetched=odds_seeded
+        )
+        logger.info("OddsPipe key configured — seeded %d markets", odds_seeded)
+        odds_processor = StreamProcessor(
+            "OddsPipe", "kalshi",  # platform fallback; ticks carry their own platform
+            os.path.join(RAW_DATA_DIR, "oddspipe_ticks.jsonl"),
+            resolver, archive=archive,
+        )
+        coros.append(odds_processor.consume_stream(odds_source, []))
+        coros.append(odds_processor.flush_batch())
+    else:
+        logger.warning(
+            "ODDSPIPE_API_KEY not set — no markets will flow. "
+            "Drop the key in secrets.local.yaml or enable DIRECT_EXCHANGE_WS_ENABLED."
+        )
+
+    # ---- Direct Kalshi/Polymarket WS (opt-in) --------------------------- #
+    if config.DIRECT_EXCHANGE_WS_ENABLED:
+        kalshi_source = KalshiDataSource()
+        poly_source = PolymarketDataSource()
+        kalshi_ids = await _seed_kalshi(kalshi_source, resolver)
+        await health.record("kalshi", success=True, records_fetched=len(kalshi_ids))
+        poly_token_ids = await _seed_polymarket(poly_source, resolver)
+        await health.record(
+            "polymarket", success=True, records_fetched=len(poly_token_ids)
+        )
+        kalshi_processor = StreamProcessor(
+            "Kalshi", "kalshi", os.path.join(RAW_DATA_DIR, "kalshi_ticks.jsonl"),
+            resolver, archive=archive,
+        )
+        poly_processor = StreamProcessor(
+            "Polymarket", "polymarket",
+            os.path.join(RAW_DATA_DIR, "polymarket_ticks.jsonl"),
+            resolver, archive=archive,
+        )
+        coros.extend([
             kalshi_processor.consume_stream(kalshi_source, kalshi_ids),
             poly_processor.consume_stream(poly_source, poly_token_ids),
             kalshi_processor.flush_batch(),
             poly_processor.flush_batch(),
+        ])
+        logger.info(
+            "Direct exchange WS enabled — Kalshi (%d markets) + Polymarket (%d tokens)",
+            len(kalshi_ids), len(poly_token_ids),
         )
+
+    if not coros:
+        logger.warning(
+            "run_ingestion has no sources configured; exiting. "
+            "Set ODDSPIPE_API_KEY or DIRECT_EXCHANGE_WS_ENABLED."
+        )
+        if archive is not None:
+            archive.close()
+        return
+
+    try:
+        await asyncio.gather(*coros)
     finally:
         if archive is not None:
             archive.close()

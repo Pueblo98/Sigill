@@ -23,6 +23,24 @@ class Config(BaseModel):
     KALSHI_PRIVATE_KEY_PATH: Optional[str] = None
     POLYMARKET_API_KEY: Optional[str] = None
 
+    # OddsPipe — third-party aggregator for Kalshi + Polymarket (REST only,
+    # no WS). The default ingestion path: OddsPipe wraps both platforms
+    # behind one X-API-Key, so a Kalshi sign-up is not required. Decision
+    # 4A pegs freshness at 5 minutes. Setting ODDSPIPE_API_KEY enables the
+    # source automatically; clear it to disable.
+    ODDSPIPE_API_KEY: Optional[str] = None
+    ODDSPIPE_BASE_URL: str = "https://oddspipe.com"
+    ODDSPIPE_POLL_SECONDS: int = 300
+    ODDSPIPE_MARKETS_PER_PLATFORM: int = 100
+
+    # Direct Kalshi/Polymarket WebSocket adapters live in the codebase but
+    # are off by default — OddsPipe covers both platforms. Flip this on
+    # only if you want sub-second tick resolution from Polymarket and have
+    # Kalshi RSA-PSS creds (KALSHI_KEY_ID + KALSHI_PRIVATE_KEY_PATH). Both
+    # paths land in MarketPrice with source='exchange_ws' alongside any
+    # OddsPipe ticks (source='oddspipe').
+    DIRECT_EXCHANGE_WS_ENABLED: bool = False
+
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHAT_ID: Optional[str] = None
     TELEGRAM_CHAT_CRITICAL: Optional[str] = None

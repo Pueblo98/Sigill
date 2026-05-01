@@ -95,10 +95,15 @@ async def main_loop():
             try:
                 logger.info("--- Starting New Sync Cycle ---")
 
-                async with AsyncSessionLocal() as session:
-                    manager = MarketManager(session)
-                    await manager.sync_source(kalshi_source)
-                    logger.info("Sync complete. Checking for signals...")
+                if config.DIRECT_EXCHANGE_WS_ENABLED:
+                    async with AsyncSessionLocal() as session:
+                        manager = MarketManager(session)
+                        await manager.sync_source(kalshi_source)
+                        logger.info("Sync complete. Checking for signals...")
+                else:
+                    logger.info(
+                        "Kalshi REST sync skipped (DIRECT_EXCHANGE_WS_ENABLED=false)"
+                    )
 
                 await asyncio.sleep(kalshi_source.refresh_interval)
 
