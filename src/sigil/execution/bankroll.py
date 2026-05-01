@@ -11,6 +11,12 @@ row per `mode`. Equity is derived as:
            + sum(realized_pnl over all positions in mode)
            + sum(unrealized_pnl over open positions in mode)
 
+`snapshot_bankroll` first runs `mark_to_market` so the per-Position
+`current_price` and `unrealized_pnl` columns are refreshed from the latest
+`MarketPrice` before the aggregate is taken. That guarantees the per-row
+view returned by `/api/positions` and the aggregate returned by
+`/api/portfolio` always match.
+
 Settled-trade counts come from closed Positions; the 30-day window uses
 `Position.closed_at`.
 """
@@ -24,9 +30,68 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sigil.config import config
-from sigil.models import BankrollSnapshot, Position
+from sigil.models import BankrollSnapshot, MarketPrice, Position
 
 logger = logging.getLogger(__name__)
+
+
+async def mark_to_market(session: AsyncSession, mode: str) -> int:
+    """Refresh `current_price` and `unrealized_pnl` for every open Position
+    in `mode` from the latest `MarketPrice` for its market.
+
+    Pricing rules:
+      - Prefer mid = (bid + ask) / 2 when both legs are present.
+      - Fall back to last_price, then bid, then ask.
+      - For `outcome == 'no'`, invert: NO_price = 1 - YES_price (the
+        ingestion pipeline stores YES-side bid/ask by convention).
+      - If no price is available at all, leave the row untouched —
+        better stale than zeroed.
+
+    Returns the number of positions actually updated (useful for logging
+    and tests).
+    """
+    open_q = (
+        select(Position)
+        .where(Position.mode == mode)
+        .where(Position.status == "open")
+    )
+    open_positions = (await session.execute(open_q)).scalars().all()
+    if not open_positions:
+        return 0
+
+    updated = 0
+    for pos in open_positions:
+        latest = await session.execute(
+            select(MarketPrice)
+            .where(MarketPrice.market_id == pos.market_id)
+            .order_by(MarketPrice.time.desc())
+            .limit(1)
+        )
+        price_row = latest.scalar_one_or_none()
+        if price_row is None:
+            continue
+
+        bid = float(price_row.bid) if price_row.bid is not None else None
+        ask = float(price_row.ask) if price_row.ask is not None else None
+        last = float(price_row.last_price) if price_row.last_price is not None else None
+
+        if bid is not None and ask is not None:
+            yes_price = (bid + ask) / 2.0
+        elif last is not None:
+            yes_price = last
+        elif bid is not None:
+            yes_price = bid
+        elif ask is not None:
+            yes_price = ask
+        else:
+            continue
+
+        current = yes_price if pos.outcome == "yes" else (1.0 - yes_price)
+        pos.current_price = current
+        pos.unrealized_pnl = float(pos.quantity) * (current - float(pos.avg_entry_price))
+        updated += 1
+
+    return updated
 
 
 async def snapshot_bankroll(
@@ -36,10 +101,19 @@ async def snapshot_bankroll(
     initial_bankroll: Optional[float] = None,
     now: Optional[datetime] = None,
 ) -> BankrollSnapshot:
-    """Compute and persist a single BankrollSnapshot row for `mode`."""
+    """Compute and persist a single BankrollSnapshot row for `mode`.
+
+    Re-marks open positions to market first so the snapshot's
+    `unrealized_pnl_total` matches the sum of per-Position
+    `unrealized_pnl` values returned by `/api/positions`.
+    """
     base_bankroll = float(initial_bankroll if initial_bankroll is not None else config.BANKROLL_INITIAL)
     snapshot_time = now or datetime.now(timezone.utc)
     window_start = snapshot_time - timedelta(days=config.DRAWDOWN_WINDOW_DAYS)
+
+    n_marked = await mark_to_market(session, mode)
+    if n_marked:
+        logger.debug("mark_to_market mode=%s updated=%d", mode, n_marked)
 
     realized_total_q = select(func.coalesce(func.sum(Position.realized_pnl), 0.0)).where(Position.mode == mode)
     unrealized_total_q = (

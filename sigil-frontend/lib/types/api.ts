@@ -118,3 +118,66 @@ export interface ArbitrageOpp {
   kelly_size: number;
   display_only: boolean;
 }
+
+// ---- Models / model-performance feature ---------------------------------
+
+export interface ApiModelPerfSummary {
+  predictions_total: number;
+  predictions_24h: number;
+  trades_total: number;
+  win_rate: number | null;
+  realized_pnl: number;
+  unrealized_pnl: number;
+  max_drawdown: number | null;
+  open_positions: number;
+  last_trade_at: string | null;
+  state: "ok" | "no_data";
+}
+
+export interface ApiModelSummary {
+  model_id: string;
+  version: string;
+  display_name: string;
+  description: string;
+  tags: string[];
+  enabled: boolean;
+  summary: ApiModelPerfSummary;
+}
+
+export interface ApiModelTrade {
+  id: string;
+  market_id: string;
+  market_title: string;
+  external_id: string;
+  platform: string;
+  side: "buy" | "sell";
+  outcome: "yes" | "no";
+  order_type: string;
+  quantity: number;
+  filled_quantity: number;
+  price: number;
+  avg_fill_price: number | null;
+  edge_at_entry: number | null;
+  fees: number;
+  status: string;
+  mode: string;
+  created_at: string | null;
+}
+
+export interface ApiModelPredictionRow extends ApiPrediction {
+  market_title: string;
+  external_id: string;
+  order_id: string | null;
+  order_status: string | null;
+}
+
+export interface ApiEquityPoint {
+  t: string;
+  cum_pnl: number;
+}
+
+export interface ApiModelDetail extends ApiModelSummary {
+  equity_curve: ApiEquityPoint[];
+  recent_trades: ApiModelTrade[];
+  recent_predictions: ApiModelPredictionRow[];
+}

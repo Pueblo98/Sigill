@@ -20,6 +20,13 @@ from sigil.models import (
     Prediction,
     SourceHealth,
 )
+from sigil.api import model_performance as mp
+# Importing the signal modules here registers their ModelDefs in
+# `sigil.models_registry`. Without this import path, /api/models would
+# return an empty list because the registrations happen at module import.
+from sigil.signals import spread_arb as _spread_arb_register  # noqa: F401
+from sigil.signals import elo_sports as _elo_sports_register  # noqa: F401
+from sigil.models_registry import get_model
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +317,31 @@ async def get_health(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
         "sources": sources,
         "as_of": rows[0].check_time.isoformat() if rows else None,
     }
+
+
+@router.get("/models")
+async def get_models(db: AsyncSession = Depends(get_db)) -> List[Dict[str, Any]]:
+    """List every registered model with summary metrics. Models that
+    haven't yet emitted a prediction still appear (with ``state: 'no_data'``
+    in their summary) so the UI can surface them as "no signals yet" cards.
+    """
+    return await mp.all_model_summaries(db)
+
+
+@router.get("/models/{model_id}")
+async def get_model_detail(
+    model_id: str, db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """Full per-model bundle: metadata + summary + equity curve +
+    recent trades + recent predictions. 404 if the model is not registered.
+    """
+    if get_model(model_id) is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    detail = await mp.model_detail(db, model_id)
+    if detail is None:
+        # Defensive: get_model said yes, model_detail said no — shouldn't happen.
+        raise HTTPException(status_code=404, detail="Model not found")
+    return detail
 
 
 @router.get("/arbitrage")

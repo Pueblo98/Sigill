@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sigil.config import config
 from sigil.execution.oms import OMS
 from sigil.execution.sizing import kelly_size
-from sigil.models import Market, MarketPrice, Order, Prediction
+from sigil.models import BankrollSnapshot, Market, MarketPrice, Order, Prediction
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +47,26 @@ def make_oms_submit(
     """Return an awaitable matching DecisionEngine.oms_submit's expected shape.
 
     `bankroll_provider`, if supplied, is awaited per call to determine the
-    Kelly-sizing bankroll. Defaults to `config.BANKROLL_INITIAL`.
+    Kelly-sizing bankroll. When omitted (the production default), the
+    bankroll is read from the latest `BankrollSnapshot.equity` for the
+    current `mode` so position sizing tracks running equity instead of
+    perpetually staking the initial deposit. Falls back to
+    `config.BANKROLL_INITIAL` only when no snapshot exists yet.
     """
 
-    async def _resolve_bankroll() -> float:
-        if bankroll_provider is None:
-            return float(config.BANKROLL_INITIAL)
-        return float(await bankroll_provider())
+    async def _resolve_bankroll(session: AsyncSession, mode: str) -> float:
+        if bankroll_provider is not None:
+            return float(await bankroll_provider())
+        latest = await session.execute(
+            select(BankrollSnapshot)
+            .where(BankrollSnapshot.mode == mode)
+            .order_by(BankrollSnapshot.time.desc())
+            .limit(1)
+        )
+        row = latest.scalar_one_or_none()
+        if row is not None:
+            return float(row.equity)
+        return float(config.BANKROLL_INITIAL)
 
     async def submit(**kwargs: Any) -> Optional[Order]:
         session: AsyncSession = kwargs["session"]
@@ -103,7 +116,7 @@ def make_oms_submit(
             float(prediction.confidence) if prediction is not None and prediction.confidence is not None else 1.0
         )
 
-        bankroll = await _resolve_bankroll()
+        bankroll = await _resolve_bankroll(session, mode)
         sized = kelly_size(
             p_model=p_model,
             p_market=entry_price,

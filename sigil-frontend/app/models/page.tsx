@@ -1,46 +1,168 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React from "react";
+import Link from "next/link";
 import { useApi } from "@/lib/api/client";
-import type { ApiPrediction } from "@/lib/types/api";
+import type { ApiModelSummary } from "@/lib/types/api";
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return "never";
+  const t = new Date(iso).getTime();
+  const ms = Date.now() - t;
+  if (ms < 0) return "just now";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+function formatPnL(v: number): string {
+  const sign = v >= 0 ? "+" : "";
+  return `${sign}$${v.toFixed(2)}`;
+}
+
+function formatPercent(v: number | null): string {
+  if (v === null || Number.isNaN(v)) return "--";
+  return `${(v * 100).toFixed(1)}%`;
+}
+
+function StatusDot({
+  enabled,
+  has24h,
+}: {
+  enabled: boolean;
+  has24h: boolean;
+}) {
+  let color = "bg-[#4a4455]";
+  let label = "disabled";
+  if (enabled && has24h) {
+    color = "bg-emerald-500";
+    label = "live";
+  } else if (enabled && !has24h) {
+    color = "bg-amber-500";
+    label = "idle";
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`w-1.5 h-1.5 rounded-full ${color}`} />
+      <span className="text-[9px] font-mono uppercase tracking-widest text-[#958da1]">
+        {label}
+      </span>
+    </span>
+  );
+}
+
+function ModelCard({ m }: { m: ApiModelSummary }) {
+  const s = m.summary;
+  const noData = s.state === "no_data";
+  const has24h = s.predictions_24h > 0;
+  return (
+    <Link
+      href={`/models/${encodeURIComponent(m.model_id)}`}
+      className="group relative bg-[#201f21] border border-[#1b1b1d] hover:border-[#7C3AED]/40 hover:shadow-[0_0_30px_rgba(124,58,237,0.1)] transition-all duration-300 p-6 flex flex-col cursor-pointer"
+    >
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold leading-tight text-[#e5e1e4] group-hover:text-[#d2bbff] transition-colors">
+            {m.display_name}
+          </h2>
+          <span className="bg-[#39393b] text-[#958da1] text-[9px] font-bold px-1.5 py-0.5 font-mono tracking-widest uppercase">
+            {m.version}
+          </span>
+        </div>
+        <StatusDot enabled={m.enabled} has24h={has24h} />
+      </div>
+
+      <p className="text-[11px] text-[#958da1] mb-4 line-clamp-2">
+        {m.description || "—"}
+      </p>
+
+      {m.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-5">
+          {m.tags.map((t) => (
+            <span
+              key={t}
+              className="text-[9px] font-bold px-1.5 py-0.5 bg-[#7C3AED]/20 text-[#d2bbff] font-mono uppercase tracking-widest"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        <div className="bg-[#1b1b1d] p-2.5">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-[#958da1]">
+            Trades
+          </div>
+          <div className="text-base font-mono text-[#e5e1e4] mt-0.5">
+            {noData ? "--" : s.trades_total}
+          </div>
+        </div>
+        <div className="bg-[#1b1b1d] p-2.5">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-[#958da1]">
+            Win Rate
+          </div>
+          <div className="text-base font-mono text-[#e5e1e4] mt-0.5">
+            {formatPercent(s.win_rate)}
+          </div>
+        </div>
+        <div className="bg-[#1b1b1d] p-2.5">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-[#958da1]">
+            P&amp;L
+          </div>
+          <div
+            className={`text-base font-mono mt-0.5 ${
+              noData
+                ? "text-[#e5e1e4]/40"
+                : s.realized_pnl > 0
+                ? "text-emerald-400"
+                : s.realized_pnl < 0
+                ? "text-rose-400"
+                : "text-[#e5e1e4]"
+            }`}
+          >
+            {noData ? "--" : formatPnL(s.realized_pnl)}
+          </div>
+        </div>
+        <div className="bg-[#1b1b1d] p-2.5">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-[#958da1]">
+            Drawdown
+          </div>
+          <div className="text-base font-mono text-[#e5e1e4] mt-0.5">
+            {s.max_drawdown !== null && !noData
+              ? `-$${s.max_drawdown.toFixed(2)}`
+              : "--"}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-auto pt-3 border-t border-[#1b1b1d] flex justify-between items-center text-[10px] font-mono">
+        <div className="text-[#958da1]">
+          {noData ? (
+            <span className="text-[#958da1]/60">no signals yet</span>
+          ) : (
+            <>
+              <span className="text-[#958da1]/60">last trade </span>
+              <span className="text-[#e5e1e4]">{formatRelative(s.last_trade_at)}</span>
+            </>
+          )}
+        </div>
+        <div className="text-[#958da1]/60">
+          {s.predictions_24h} pred / 24h
+        </div>
+      </div>
+    </Link>
+  );
+}
 
 export default function Models() {
-  const [modelFilter, setModelFilter] = useState<string>("");
-  const endpoint = modelFilter
-    ? `/api/predictions?model_id=${encodeURIComponent(modelFilter)}`
-    : "/api/predictions";
-  const { data, error, isLoading } = useApi<ApiPrediction[]>(endpoint);
-  const predictions = data ?? [];
-
-  const stats = useMemo(() => {
-    if (predictions.length === 0) {
-      return { count: 0, avgEdge: null, avgConf: null };
-    }
-    const edges = predictions
-      .map((p) => p.edge)
-      .filter((v): v is number => v !== null);
-    const confs = predictions
-      .map((p) => p.confidence)
-      .filter((v): v is number => v !== null);
-    const avg = (arr: number[]) =>
-      arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
-    return {
-      count: predictions.length,
-      avgEdge: avg(edges),
-      avgConf: avg(confs),
-    };
-  }, [predictions]);
-
-  const byModel = useMemo(() => {
-    const m = new Map<string, ApiPrediction[]>();
-    for (const p of predictions) {
-      const key = `${p.model_id}@${p.model_version}`;
-      const arr = m.get(key) ?? [];
-      arr.push(p);
-      m.set(key, arr);
-    }
-    return Array.from(m.entries());
-  }, [predictions]);
+  const { data, error, isLoading } = useApi<ApiModelSummary[]>("/api/models");
+  const models = data ?? [];
 
   return (
     <div className="p-6">
@@ -50,151 +172,30 @@ export default function Models() {
             Model Performance
           </h2>
           <h1 className="text-2xl font-black tracking-tight text-[#e5e1e4]">
-            PREDICTIONS LOG
+            REGISTERED MODELS
           </h1>
         </div>
-        <div className="flex items-center gap-4">
-          <input
-            type="text"
-            placeholder="Filter by model_id..."
-            value={modelFilter}
-            onChange={(e) => setModelFilter(e.target.value)}
-            className="bg-[#1b1b1d] border border-[#201f21] px-3 py-2 text-[10px] font-mono text-[#e5e1e4] focus:outline-none focus:border-[#7C3AED]/50"
-          />
+        <div className="text-[10px] font-mono uppercase tracking-widest text-[#958da1]">
+          {models.length} model{models.length === 1 ? "" : "s"}
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-[#201f21] p-6 border-l-2 border-[#7C3AED]">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#958da1]">
-            Predictions
-          </h3>
-          <p className="font-mono text-3xl font-bold text-[#e5e1e4] mt-2">
-            {stats.count}
-          </p>
+      {isLoading ? (
+        <div className="text-[10px] font-mono uppercase tracking-widest text-[#958da1] p-8">
+          Loading models...
         </div>
-        <div className="bg-[#201f21] p-6 border-l-2 border-[#4a4455]/40">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#958da1]">
-            Avg Edge
-          </h3>
-          <p className="font-mono text-3xl font-bold text-[#e5e1e4] mt-2">
-            {stats.avgEdge !== null
-              ? `${(stats.avgEdge * 100).toFixed(2)}¢`
-              : "--"}
-          </p>
+      ) : error ? (
+        <div className="text-[10px] font-mono uppercase tracking-widest text-rose-500 p-8">
+          API error: {error.message}
         </div>
-        <div className="bg-[#201f21] p-6 border-l-2 border-[#7C3AED]">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#958da1]">
-            Avg Confidence
-          </h3>
-          <p className="font-mono text-3xl font-bold text-[#e5e1e4] mt-2">
-            {stats.avgConf !== null
-              ? `${(stats.avgConf * 100).toFixed(1)}%`
-              : "--"}
-          </p>
+      ) : models.length === 0 ? (
+        <div className="text-[10px] font-mono uppercase tracking-widest text-[#958da1] p-8">
+          No models registered. Add a register_model() call in a signal module.
         </div>
-      </div>
-
-      <div className="bg-[#201f21] overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-[#4a4455]/10 bg-[#2a2a2c]/30">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-[#e5e1e4]">
-            Recent Predictions
-          </h3>
-        </div>
-        {isLoading ? (
-          <div className="p-8 text-[10px] font-mono uppercase tracking-widest text-[#958da1]">
-            Loading predictions...
-          </div>
-        ) : error ? (
-          <div className="p-8 text-[10px] font-mono uppercase tracking-widest text-rose-500">
-            API error: {error.message}
-          </div>
-        ) : predictions.length === 0 ? (
-          <div className="p-8 text-[10px] font-mono uppercase tracking-widest text-[#958da1]">
-            No predictions yet. Models have not produced output.
-          </div>
-        ) : (
-          <div className="overflow-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-[#2a2a2c]/90 backdrop-blur z-10">
-                <tr>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase text-[#958da1]">
-                    Model
-                  </th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase text-[#958da1] text-right">
-                    Predicted P
-                  </th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase text-[#958da1] text-right">
-                    Market P
-                  </th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase text-[#958da1] text-right">
-                    Edge
-                  </th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase text-[#958da1] text-right">
-                    Confidence
-                  </th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase text-[#958da1] text-right">
-                    When
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#4a4455]/5">
-                {predictions.map((p) => (
-                  <tr key={p.id} className="hover:bg-[#39393b]">
-                    <td className="px-4 py-3 text-[10px] font-mono text-[#e5e1e4]">
-                      {p.model_id}@{p.model_version}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-[10px] text-[#e5e1e4]">
-                      {(p.predicted_prob * 100).toFixed(1)}%
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-[10px] text-[#e5e1e4]">
-                      {p.market_price_at_prediction !== null
-                        ? `${(p.market_price_at_prediction * 100).toFixed(1)}¢`
-                        : "--"}
-                    </td>
-                    <td
-                      className={`px-4 py-3 text-right font-mono text-[10px] ${
-                        p.edge !== null && p.edge >= 0
-                          ? "text-emerald-500"
-                          : p.edge !== null
-                          ? "text-rose-500"
-                          : "text-[#e5e1e4]/40"
-                      }`}
-                    >
-                      {p.edge !== null
-                        ? `${p.edge >= 0 ? "+" : ""}${(p.edge * 100).toFixed(2)}¢`
-                        : "--"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-[10px] text-[#e5e1e4]">
-                      {p.confidence !== null
-                        ? `${(p.confidence * 100).toFixed(0)}%`
-                        : "--"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-[10px] text-[#958da1]">
-                      {p.created_at
-                        ? new Date(p.created_at).toLocaleString()
-                        : "--"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {byModel.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {byModel.map(([key, preds]) => (
-            <div key={key} className="bg-[#201f21] p-4 border border-[#1b1b1d]">
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#d2bbff]">
-                {key}
-              </h4>
-              <p className="font-mono text-2xl font-bold text-[#e5e1e4] mt-2">
-                {preds.length}
-              </p>
-              <p className="text-[9px] font-mono text-[#958da1]">predictions</p>
-            </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
+          {models.map((m) => (
+            <ModelCard key={m.model_id} m={m} />
           ))}
         </div>
       )}

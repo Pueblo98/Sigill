@@ -119,7 +119,7 @@ class Config(BaseModel):
 
     DEFAULT_MODE: str = "paper"
 
-    BANKROLL_INITIAL: float = 5000.0
+    BANKROLL_INITIAL: float = 4000.0
 
     SETTLEMENT_WS_ENABLED: bool = False  # off by default: needs Kalshi creds + connectivity
 

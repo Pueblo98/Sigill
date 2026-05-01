@@ -1,25 +1,38 @@
 """Seed realistic dev data so the dashboard isn't empty.
 
-Populates Markets, MarketPrice, Predictions, Orders, Positions,
-SourceHealth, ReconciliationObservation, BankrollSnapshot, and a
-BacktestResult — enough to make every widget surfaced in
-``dashboard.yaml`` render with content, plus the F2 widgets that
-read SourceHealth + BacktestResult.
+Populates Markets, MarketPrice, Predictions, SourceHealth,
+ReconciliationObservation, and a BacktestResult — enough to make
+every research/data widget render with content.
+
+By default this script does NOT fabricate Orders, Positions, or
+BankrollSnapshots — those are paper-trading state and should come from
+the real signal → DecisionEngine → OMS flow against your bankroll.
+The fake-trades path is still available behind ``--include-fake-trades``
+for demos and screenshots, but should not be used when you want the
+dashboard to honestly reflect what your strategies have done.
 
 All rows seeded by this script use external-id prefix ``DEV-`` so they
 are easy to clean up and won't collide with real ingestion.
 
 Usage:
 
-    # Seed (idempotent: clears prior DEV- seed first)
+    # Seed market/prediction data (no fake trades)
     .venv/Scripts/python.exe scripts/seed_dev_data.py
+
+    # Demo mode: include fabricated paper trades + bankroll snapshots
+    .venv/Scripts/python.exe scripts/seed_dev_data.py --include-fake-trades
 
     # Different DB
     .venv/Scripts/python.exe scripts/seed_dev_data.py --db-url \\
         sqlite+aiosqlite:///./sigil_dev.db
 
-    # Wipe seed data without re-inserting
+    # Wipe DEV- seed data without re-inserting
     .venv/Scripts/python.exe scripts/seed_dev_data.py --reset-only
+
+    # Wipe paper-trading state (Orders/Positions/BankrollSnapshots in
+    # mode=paper) without touching market data. Use this to start the
+    # paper bankroll from BANKROLL_INITIAL again.
+    .venv/Scripts/python.exe scripts/seed_dev_data.py --wipe-paper-state
 """
 from __future__ import annotations
 
@@ -464,12 +477,36 @@ async def _seed_backtest_result(session, now: datetime) -> int:
     return 1
 
 
+async def _wipe_paper_state(session) -> None:
+    """Delete every paper-mode Order, Position, and BankrollSnapshot.
+
+    Leaves Markets, MarketPrice, Predictions, SourceHealth, and
+    BacktestResult intact — only the trading state is reset, so the
+    paper bankroll restarts from BANKROLL_INITIAL on the next snapshot.
+    """
+    paper_orders = (await session.execute(delete(Order).where(Order.mode == "paper"))).rowcount
+    paper_positions = (await session.execute(delete(Position).where(Position.mode == "paper"))).rowcount
+    paper_snaps = (await session.execute(delete(BankrollSnapshot).where(BankrollSnapshot.mode == "paper"))).rowcount
+    _ok(
+        f"wiped paper-trading state: {paper_orders} Orders, "
+        f"{paper_positions} Positions, {paper_snaps} BankrollSnapshots"
+    )
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db-url", default=None,
                         help="override DATABASE_URL (else config.DATABASE_URL)")
     parser.add_argument("--reset-only", action="store_true",
                         help="wipe DEV- seed data and exit (no re-insert)")
+    parser.add_argument("--wipe-paper-state", action="store_true",
+                        help="wipe paper Orders/Positions/BankrollSnapshots and exit; "
+                             "leaves market data intact so the next snapshot starts "
+                             "from BANKROLL_INITIAL")
+    parser.add_argument("--include-fake-trades", action="store_true",
+                        help="ALSO seed fabricated Orders/Positions/BankrollSnapshots "
+                             "(demo mode). Off by default — the paper-trading flow "
+                             "should drive these via the real signal → OMS path.")
     args = parser.parse_args()
 
     db_url = args.db_url or root_config.DATABASE_URL
@@ -481,6 +518,14 @@ async def main() -> int:
     sigil_db.AsyncSessionLocal = factory
 
     now = datetime.now(timezone.utc)
+
+    if args.wipe_paper_state:
+        async with factory() as session:
+            await _wipe_paper_state(session)
+            await session.commit()
+        print("\n[ OK ] paper-trading state wiped (market data untouched)")
+        await engine.dispose()
+        return 0
 
     async with factory() as session:
         await _reset_seed(session)
@@ -495,16 +540,22 @@ async def main() -> int:
         markets = await _seed_markets(session, now)
         await _seed_market_prices(session, markets, now)
         preds = await _seed_predictions(session, markets, now)
-        await _seed_orders_positions(session, markets, preds, now)
         await _seed_source_health(session, now)
         await _seed_reconciliation(session, markets, now)
-        await _seed_bankroll_snapshots(session, now)
         await _seed_backtest_result(session, now)
+        if args.include_fake_trades:
+            await _seed_orders_positions(session, markets, preds, now)
+            await _seed_bankroll_snapshots(session, now)
+            print("[INFO] --include-fake-trades active: paper trade rows are fabricated, "
+                  "not from the real signal flow.")
         await session.commit()
 
     await engine.dispose()
     print("\n[ OK ] dev seed populated. Reload the dashboard; widgets should fill within ~60s")
     print("       (the refresh job ticks every minute; or curl /page/command-center after a tick)")
+    if not args.include_fake_trades:
+        print("       Paper trading state is empty — start ingestion to let real signals fill it,")
+        print("       or re-run with --include-fake-trades for a demo dataset.")
     return 0
 
 
