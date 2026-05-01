@@ -146,18 +146,34 @@ binding/lifespan path.
 You can either run real Postgres or fall back to the SQLite path. The schema
 is identical via alembic; downstream code doesn't care.
 
-For Postgres:
+For Postgres (preferred — `docker-compose.yml` ships in the repo):
 
 ```bash
-# Start a local Postgres (either via Postgres.app, brew services, or docker):
+# Bring up the sigil postgres service (named volume sigil-pg-data persists
+# data across restarts):
+docker compose up -d
+
+# Wait for healthy:
+docker compose ps
+
+# Apply schema (alembic auto-derives sync URL from config.DATABASE_URL):
+.venv/Scripts/python.exe -m alembic upgrade head
+
+# Seed realistic dev data so every widget renders content (DEV-prefixed
+# rows; idempotent re-run; --reset-only wipes without re-inserting):
+.venv/Scripts/python.exe scripts/seed_dev_data.py
+```
+
+`config.py` defaults to `postgresql+asyncpg://sigil:sigil@localhost:5432/sigil`,
+which matches the credentials in `docker-compose.yml`. To start over with a
+clean DB: `docker compose down -v && docker compose up -d`.
+
+For one-off legacy `docker run` (no compose):
+
+```bash
 docker run -d --name sigil-pg -p 5432:5432 \
   -e POSTGRES_USER=sigil -e POSTGRES_PASSWORD=sigil \
   -e POSTGRES_DB=sigil postgres:16
-
-# config.py defaults to postgresql+asyncpg://sigil:sigil@localhost:5432/sigil
-
-# Apply schema
-.venv/Scripts/python.exe -m alembic upgrade head
 ```
 
 For SQLite-only (no docker), set in shell or .env:

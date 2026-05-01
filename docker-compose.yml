@@ -1,0 +1,36 @@
+# Sigil dev infra. Spin up with `docker compose up -d`.
+#
+# config.py defaults to postgresql+asyncpg://sigil:sigil@localhost:5432/sigil,
+# which matches the credentials below — no env override needed.
+#
+# Data persists in the named `sigil-pg-data` volume across container
+# restarts. To start from a clean DB:
+#
+#   docker compose down -v && docker compose up -d
+#
+# Note: port 5432 is the default; if you have another postgres listening
+# (e.g. another project's container), stop it before `up -d` or remap
+# the host side here. config.py is BaseModel (no env auto-load) so a
+# port change here also needs a config.py edit.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: sigil-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sigil
+      POSTGRES_PASSWORD: sigil
+      POSTGRES_DB: sigil
+    ports:
+      - "5432:5432"
+    volumes:
+      - sigil-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sigil -d sigil"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  sigil-pg-data:
