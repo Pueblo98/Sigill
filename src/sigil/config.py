@@ -41,6 +41,20 @@ class Config(BaseModel):
     # OddsPipe ticks (source='oddspipe').
     DIRECT_EXCHANGE_WS_ENABLED: bool = False
 
+    # Spread-arb signal — polls OddsPipe /v1/spreads and emits Predictions
+    # for under-priced sides of cross-platform matches. Auto-enabled when
+    # ODDSPIPE_API_KEY is set (it reuses that auth). Set
+    # SPREAD_ARB_INTERVAL_SECONDS to 0 to disable while keeping OddsPipe
+    # market data flowing.
+    SPREAD_ARB_INTERVAL_SECONDS: int = 600   # 10 min cadence
+    SPREAD_ARB_MIN_SCORE: float = 95.0       # title-match confidence; <95 is mostly noise
+    SPREAD_ARB_MIN_EDGE: float = 0.05
+    SPREAD_ARB_MAX_MATCHES: int = 30
+    # When the two sides differ by more than this, the "match" is almost
+    # certainly two different questions OddsPipe scored as similar. A real
+    # cross-platform arb is usually <0.20 absolute spread.
+    SPREAD_ARB_MAX_YES_DIFF: float = 0.30
+
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHAT_ID: Optional[str] = None
     TELEGRAM_CHAT_CRITICAL: Optional[str] = None

@@ -31,6 +31,7 @@ from sigil.ingestion.oddspipe import OddsPipeDataSource
 from sigil.ingestion.orderbook_archive import OrderbookArchive
 from sigil.ingestion.polymarket import PolymarketDataSource
 from sigil.models import Market, MarketPrice, SourceHealth
+from sigil.signals.spread_arb import generate_spread_predictions
 
 logger = logging.getLogger(__name__)
 
@@ -374,6 +375,35 @@ async def _seed_polymarket(
     return poly_source.yes_token_ids
 
 
+async def _run_spread_arb_loop(odds_source: OddsPipeDataSource) -> None:
+    """Periodically poll /v1/spreads and emit Predictions.
+
+    Runs forever; cancellation propagates from ``run_ingestion``'s
+    asyncio.gather. Sleeps a few seconds before the first run so the
+    OddsPipe internal-id map (built by the OddsPipe stream's first
+    fetch) is populated.
+    """
+    await asyncio.sleep(5)
+    interval = max(60, int(config.SPREAD_ARB_INTERVAL_SECONDS))
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                n = await generate_spread_predictions(
+                    session,
+                    odds_source,
+                    min_score=config.SPREAD_ARB_MIN_SCORE,
+                    min_edge=config.SPREAD_ARB_MIN_EDGE,
+                    max_yes_diff=config.SPREAD_ARB_MAX_YES_DIFF,
+                    dedup_window_seconds=interval,
+                    max_matches=config.SPREAD_ARB_MAX_MATCHES,
+                )
+            if n > 0:
+                logger.info("spread_arb: wrote %d Prediction(s)", n)
+        except Exception:
+            logger.exception("spread_arb loop iteration failed")
+        await asyncio.sleep(interval)
+
+
 async def _seed_oddspipe(
     odds_source: OddsPipeDataSource, resolver: MarketIdResolver
 ) -> int:
@@ -438,6 +468,17 @@ async def run_ingestion() -> None:
         )
         coros.append(odds_processor.consume_stream(odds_source, []))
         coros.append(odds_processor.flush_batch())
+
+        # Spread-arb signal generator runs alongside as its own coroutine.
+        # Reuses the same OddsPipeDataSource (and its internal-id map).
+        if config.SPREAD_ARB_INTERVAL_SECONDS > 0:
+            coros.append(_run_spread_arb_loop(odds_source))
+            logger.info(
+                "spread_arb signal enabled (interval=%ds, min_score=%.1f, min_edge=%.2f)",
+                config.SPREAD_ARB_INTERVAL_SECONDS,
+                config.SPREAD_ARB_MIN_SCORE,
+                config.SPREAD_ARB_MIN_EDGE,
+            )
     else:
         logger.warning(
             "ODDSPIPE_API_KEY not set — no markets will flow. "

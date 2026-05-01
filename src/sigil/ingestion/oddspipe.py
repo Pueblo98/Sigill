@@ -40,7 +40,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, AsyncIterator, Iterable, List, Optional
+from dataclasses import dataclass
+from typing import Any, AsyncIterator, Dict, Iterable, List, Optional, Tuple
 
 import httpx
 import pandas as pd
@@ -48,10 +49,41 @@ import pandas as pd
 from sigil.ingestion.base import DataSource
 
 
+@dataclass(frozen=True)
+class SpreadSide:
+    """One side of a cross-platform spread match."""
+    platform: str
+    internal_id: int             # OddsPipe-internal numeric id
+    external_id: Optional[str]   # platform_market_id, if known via fetch()
+    yes_price: float
+    no_price: float
+    volume_usd: float
+    title: str
+
+
+@dataclass(frozen=True)
+class SpreadMatch:
+    """A pair of markets that OddsPipe has matched across platforms."""
+    match_id: int
+    score: float                 # 0-100 confidence the markets are equivalent
+    yes_diff: float              # absolute difference in YES price
+    direction: str               # "kalshi_higher" | "polymarket_higher" | ...
+    sides: List[SpreadSide]
+
+
 logger = logging.getLogger(__name__)
 
 
 _DEFAULT_BASE_URL = "https://oddspipe.com"
+
+
+def _to_float_or_none(v: Any) -> Optional[float]:
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 class OddsPipeAuthError(RuntimeError):
@@ -79,6 +111,9 @@ class OddsPipeDataSource(DataSource):
             timeout=30.0,
             headers={"X-API-Key": api_key} if api_key else {},
         )
+        # Filled during fetch(). Lets fetch_spreads() resolve OddsPipe
+        # internal market ids back to (platform, external_id) -> Market.id.
+        self._internal_id_to_platform_pair: Dict[int, Tuple[str, str]] = {}
 
     def _require_key(self) -> None:
         if not self.api_key:
@@ -91,7 +126,9 @@ class OddsPipeDataSource(DataSource):
 
         Skips per-platform errors so one platform 5xx doesn't kill the
         whole cycle. Returns the raw item dicts; ``normalize`` flattens
-        for the runner.
+        for the runner. Side-effect: rebuilds the
+        ``internal_id -> (platform, external_id)`` map used by
+        :meth:`fetch_spreads`.
         """
         self._require_key()
         items: List[dict] = []
@@ -116,7 +153,145 @@ class OddsPipeDataSource(DataSource):
             body = r.json()
             for it in (body.get("items") or []):
                 items.append(it)
+
+        # Rebuild the OddsPipe internal-id mapping from the fresh fetch.
+        # Spreads use the top-level `id` (per /v1/markets/{id} verification)
+        # — NOT the nested `source.id`, which is a different row.
+        new_map: Dict[int, Tuple[str, str]] = {}
+        for it in items:
+            src = it.get("source") or {}
+            ext_id = src.get("platform_market_id")
+            platform = src.get("platform")
+            internal = it.get("id")  # top-level oddspipe market id
+            if internal is None or ext_id is None or platform is None:
+                continue
+            try:
+                new_map[int(internal)] = (str(platform), str(ext_id))
+            except (TypeError, ValueError):
+                continue
+        # Keep prior entries too — internal ids are stable, and fetch_spreads
+        # may reference markets outside the top-N we just pulled.
+        self._internal_id_to_platform_pair.update(new_map)
         return items
+
+    async def _resolve_internal_id(
+        self, internal_id: int
+    ) -> Optional[Tuple[str, str]]:
+        """Fetch /v1/markets/{id} on a cache miss to learn (platform,
+        platform_market_id) for spreads referencing markets outside the
+        top-N we polled this cycle."""
+        cached = self._internal_id_to_platform_pair.get(internal_id)
+        if cached is not None:
+            return cached
+        detail = await self.fetch_market_detail(internal_id)
+        if detail is None:
+            return None
+        src = (detail.get("source") or {})
+        ext_id = src.get("platform_market_id")
+        platform = src.get("platform")
+        if ext_id is None or platform is None:
+            return None
+        pair = (str(platform), str(ext_id))
+        self._internal_id_to_platform_pair[internal_id] = pair
+        return pair
+
+    async def fetch_market_detail(self, internal_id: int) -> Optional[dict]:
+        """GET /v1/markets/{id}. Public so callers (e.g. spread_arb signal)
+        can upsert a Market row for spread sides that weren't seeded.
+        """
+        try:
+            r = await self.client.get(f"/v1/markets/{internal_id}")
+        except Exception as exc:
+            logger.warning("OddsPipe /v1/markets/%s failed: %s", internal_id, exc)
+            return None
+        if r.status_code != 200:
+            return None
+        return r.json()
+
+    async def fetch_spreads(
+        self,
+        *,
+        min_score: float = 85.0,
+        min_spread: float = 0.0,
+        top_n: int = 50,
+    ) -> List[SpreadMatch]:
+        """Pull cross-platform matches from /v1/spreads.
+
+        Each match has two sides (one per platform) with prices + volumes
+        plus a confidence score. Use ``min_score`` to drop noisy matches
+        (the API auto-matches by title similarity; <85 is mostly garbage).
+
+        Sides whose internal id can't be resolved to a platform external_id
+        get ``external_id=None`` — callers should filter those out before
+        emitting a Prediction. To populate the map, call ``fetch()`` first
+        (the runner does this every cycle).
+        """
+        self._require_key()
+        try:
+            r = await self.client.get(
+                "/v1/spreads",
+                params={
+                    "min_score": str(min_score),
+                    "min_spread": str(min_spread),
+                    "top_n": str(top_n),
+                    "limit": str(top_n),
+                },
+            )
+        except Exception as exc:
+            logger.warning("OddsPipe /v1/spreads failed: %s", exc)
+            return []
+        if r.status_code != 200:
+            logger.warning(
+                "OddsPipe /v1/spreads HTTP %s: %s", r.status_code, r.text[:200]
+            )
+            return []
+        body = r.json()
+        out: List[SpreadMatch] = []
+        for item in (body.get("items") or []):
+            try:
+                match_id = int(item.get("match_id"))
+                score = float(item.get("score") or 0.0)
+            except (TypeError, ValueError):
+                continue
+            sides: List[SpreadSide] = []
+            for platform in self.platforms:
+                side_obj = item.get(platform) or {}
+                if not isinstance(side_obj, dict):
+                    continue
+                internal = side_obj.get("market_id")
+                yes = _to_float_or_none(side_obj.get("yes_price"))
+                no = _to_float_or_none(side_obj.get("no_price"))
+                vol = _to_float_or_none(side_obj.get("volume_usd"))
+                if internal is None or yes is None:
+                    continue
+                try:
+                    internal_int = int(internal)
+                except (TypeError, ValueError):
+                    continue
+                pair = await self._resolve_internal_id(internal_int)
+                external_id = pair[1] if pair else None
+                sides.append(SpreadSide(
+                    platform=platform,
+                    internal_id=internal_int,
+                    external_id=external_id,
+                    yes_price=yes,
+                    no_price=no if no is not None else (1.0 - yes),
+                    volume_usd=vol if vol is not None else 0.0,
+                    title=str(side_obj.get("title") or ""),
+                ))
+            if len(sides) < 2:
+                continue
+            spread_obj = item.get("spread") or {}
+            yes_diff = _to_float_or_none(spread_obj.get("yes_diff")) or 0.0
+            direction = str(spread_obj.get("direction") or "")
+            out.append(SpreadMatch(
+                match_id=match_id,
+                score=score,
+                yes_diff=yes_diff,
+                direction=direction,
+                sides=sides,
+            ))
+        return out
 
     def normalize(self, raw_data: List[dict]) -> pd.DataFrame:
         rows = []

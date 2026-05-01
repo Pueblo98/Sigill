@@ -41,10 +41,8 @@ pages:
         widgets:
           - type: market_list
             cache: 1m
-            sort: edge_desc
-            limit: 50
-            filters:
-              min_edge: 0.05
+            sort: volume_desc
+            limit: 100
 
   - name: models
     title: Model Performance
