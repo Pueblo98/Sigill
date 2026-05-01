@@ -11,8 +11,16 @@ class Config(BaseModel):
     DB_POOL_MAX: int = 50
     HTTPX_PER_HOST_LIMIT: int = 10
 
+    # Legacy Kalshi creds — kept for sops/env compatibility but unused by the
+    # new adapter. The current Kalshi API uses RSA-PSS signed headers; provide
+    # KALSHI_KEY_ID (UUID from kalshi.com → Profile → API Keys) and EITHER
+    # KALSHI_PRIVATE_KEY_PEM (inline multi-line PEM) OR KALSHI_PRIVATE_KEY_PATH
+    # (file containing the PEM). Without these the adapter raises on any call.
     KALSHI_API_KEY: Optional[str] = None
     KALSHI_SECRET: Optional[str] = None
+    KALSHI_KEY_ID: Optional[str] = None
+    KALSHI_PRIVATE_KEY_PEM: Optional[str] = None
+    KALSHI_PRIVATE_KEY_PATH: Optional[str] = None
     POLYMARKET_API_KEY: Optional[str] = None
 
     TELEGRAM_BOT_TOKEN: Optional[str] = None

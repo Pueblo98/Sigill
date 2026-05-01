@@ -1,85 +1,202 @@
+"""Kalshi data source.
+
+Targets the current Kalshi Elections API at ``api.elections.kalshi.com``.
+Both REST and WS require RSA-PSS signed headers; provide
+``config.KALSHI_KEY_ID`` + ``KALSHI_PRIVATE_KEY_PATH`` (or _PEM). See
+``sigil/ingestion/kalshi_auth.py``.
+
+Schema notes (post-migration):
+- REST `/markets` returns prices as decimal strings in `*_dollars`
+  fields (e.g. ``"0.4200"``) plus integer cents in some legacy fields.
+  We parse dollars; the WS ladder is in cents (integer).
+- ``status`` values now include ``active|finalized|...``; only
+  ``active`` corresponds to our internal ``open``.
+- ``ticker`` remains the external_id; ``event_ticker`` groups markets.
+- ``category`` has moved off ``/markets`` onto ``/events``; we leave
+  ``taxonomy_l1`` as ``"general"`` here and let an enrichment step
+  fill it from ``/events/{event_ticker}`` later.
+"""
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any, AsyncIterator, List, Optional
+
 import httpx
 import pandas as pd
-from typing import Any, List, AsyncIterator
 import websockets
-import json
-from sigil.ingestion.base import DataSource
+
 from sigil.config import config
+from sigil.ingestion.base import DataSource
+from sigil.ingestion.kalshi_auth import (
+    KalshiAuthConfig,
+    KalshiAuthError,
+    auth_headers,
+)
+
+
+logger = logging.getLogger(__name__)
+
+
+_DEFAULT_REST = "https://api.elections.kalshi.com/trade-api/v2"
+_DEFAULT_WS = "wss://api.elections.kalshi.com/trade-api/ws/v2"
+
+
+def _resolve_auth() -> KalshiAuthConfig:
+    return KalshiAuthConfig.from_config(
+        key_id=config.KALSHI_KEY_ID,
+        private_key_pem=config.KALSHI_PRIVATE_KEY_PEM,
+        private_key_path=config.KALSHI_PRIVATE_KEY_PATH,
+    )
+
+
+def _to_float_or_none(v: Any) -> Optional[float]:
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 class KalshiDataSource(DataSource):
     name: str = "kalshi_markets"
-    refresh_interval: int = 60  # seconds
+    refresh_interval: int = 60
 
-    def __init__(self, base_url: str = "https://trading-api.kalshi.com/trade-api/v2"):
-        self.base_url = base_url
-        self.client = httpx.AsyncClient(base_url=base_url)
+    def __init__(
+        self,
+        base_url: str = _DEFAULT_REST,
+        ws_url: str = _DEFAULT_WS,
+        *,
+        auth: Optional[KalshiAuthConfig] = None,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.ws_url = ws_url
+        # Path used in the signature must be absolute; we extract once.
+        # https://api.elections.kalshi.com/trade-api/v2 -> /trade-api/v2
+        self._path_prefix = httpx.URL(self.base_url).path.rstrip("/")
+        self._auth = auth
+        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=20.0)
 
-    async def fetch(self) -> List[dict]:
-        """Fetch active markets from Kalshi."""
-        response = await self.client.get("/markets")
-        response.raise_for_status()
-        return response.json().get("markets", [])
+    def _resolve_auth(self) -> KalshiAuthConfig:
+        if self._auth is None:
+            self._auth = _resolve_auth()
+        return self._auth
 
-    async def stream_prices(self, market_ids: List[str]) -> AsyncIterator[dict]:
-        """Stream real-time orderbook updates from Kalshi WebSocket."""
-        ws_url = "wss://trading-api.kalshi.com/trade-api/ws/v2"
-        # Using a simple unauthenticated connection for public market data streaming
-        async with websockets.connect(ws_url) as ws:
-            subscribe_msg = {
+    def _signed_headers(self, *, method: str, sub_path: str) -> dict:
+        """``sub_path`` is the path beneath ``base_url`` (must start with ``/``)."""
+        full_path = f"{self._path_prefix}{sub_path}"
+        return auth_headers(self._resolve_auth(), method=method, path=full_path)
+
+    async def fetch(self, *, status: str = "open", limit: int = 100) -> List[dict]:
+        """Fetch one page of markets matching ``status`` (default ``open``).
+
+        We don't paginate by default — for live ingestion the operator
+        chooses an event-ticker filter or accepts the first page.
+        """
+        try:
+            headers = self._signed_headers(method="GET", sub_path="/markets")
+        except KalshiAuthError as exc:
+            logger.warning("Kalshi auth not configured: %s", exc)
+            return []
+        try:
+            r = await self.client.get(
+                "/markets",
+                params={"status": status, "limit": limit},
+                headers=headers,
+            )
+        except Exception as exc:
+            logger.warning("Kalshi REST /markets failed: %s", exc)
+            return []
+        if r.status_code != 200:
+            logger.warning(
+                "Kalshi REST /markets HTTP %s: %s", r.status_code, r.text[:200]
+            )
+            return []
+        body = r.json()
+        return body.get("markets", []) if isinstance(body, dict) else []
+
+    def normalize(self, raw_data: List[dict]) -> pd.DataFrame:
+        """Convert Kalshi market records to Sigil's Market schema."""
+        rows = []
+        for m in raw_data:
+            ticker = m.get("ticker")
+            if not ticker:
+                continue
+            kalshi_status = (m.get("status") or "").lower()
+            internal_status = "open" if kalshi_status == "active" else kalshi_status or "unknown"
+            rows.append({
+                "external_id": ticker,
+                "platform": "kalshi",
+                "title": m.get("title") or m.get("yes_sub_title") or ticker,
+                # Kalshi has moved category off /markets; default to general.
+                "taxonomy_l1": "general",
+                "market_type": m.get("market_type") or "binary",
+                "status": internal_status,
+                "resolution_date": m.get("expiration_time")
+                                    or m.get("close_time")
+                                    or m.get("latest_expiration_time"),
+            })
+        return pd.DataFrame(rows)
+
+    def validate(self, df: pd.DataFrame) -> bool:
+        required = {"external_id", "platform", "title", "taxonomy_l1"}
+        return required.issubset(df.columns) and not df.empty
+
+    async def stream_prices(self, market_tickers: List[str]) -> AsyncIterator[dict]:
+        """Stream WS orderbook_delta ticks for ``market_tickers``.
+
+        Auth headers are computed against the WS path. The WS ladder is
+        in integer cents; we convert to dollars in the yielded tick.
+        """
+        if not market_tickers:
+            return
+        try:
+            ws_path = httpx.URL(self.ws_url).path or "/trade-api/ws/v2"
+            headers = auth_headers(self._resolve_auth(), method="GET", path=ws_path)
+        except KalshiAuthError as exc:
+            logger.warning("Kalshi WS auth not configured: %s", exc)
+            return
+
+        async with websockets.connect(
+            self.ws_url,
+            additional_headers=list(headers.items()),
+            open_timeout=15,
+        ) as ws:
+            await ws.send(json.dumps({
                 "id": 1,
                 "cmd": "subscribe",
                 "params": {
                     "channels": ["orderbook_delta"],
-                    "market_tickers": market_ids
-                }
-            }
-            await ws.send(json.dumps(subscribe_msg))
-            
+                    "market_tickers": market_tickers,
+                },
+            }))
             async for message in ws:
-                data = json.loads(message)
-                if data.get("type") == "orderbook_delta":
-                    msg_data = data.get("msg", {})
-                    market_id = msg_data.get("market_ticker")
-                    
-                    bids = msg_data.get("bids", [])
-                    asks = msg_data.get("asks", [])
-                    
-                    # Prices in Kalshi are in cents
-                    best_bid = (bids[0][0] / 100.0) if bids else None
-                    best_ask = (asks[0][0] / 100.0) if asks else None
-                    
-                    yield {
-                        "market_id": market_id,
-                        "platform": "kalshi",
-                        "bid": best_bid,
-                        "ask": best_ask,
-                        "last_price": best_bid,  # approximate if last_price not in delta
-                        "time": pd.Timestamp.utcnow(),
-                        "volume_24h": None,
-                        "open_interest": None,
-                        "source": "exchange_ws",
-                        # Raw Kalshi ladder ([price_cents, size]); preserved for
-                        # the orderbook archive (TODO-1). Downstream consumers
-                        # ignore these keys.
-                        "bids": bids,
-                        "asks": asks,
-                    }
-
-    def normalize(self, raw_data: List[dict]) -> pd.DataFrame:
-        """Normalize Kalshi market data into a standard DataFrame."""
-        normalized = []
-        for m in raw_data:
-            normalized.append({
-                "external_id": m.get("ticker"),
-                "platform": "kalshi",
-                "title": m.get("title"),
-                "taxonomy_l1": m.get("category", "unknown").lower(),
-                "market_type": "binary",
-                "status": m.get("status", "open").lower(),
-                "resolution_date": m.get("close_time"),
-            })
-        return pd.DataFrame(normalized)
-
-    def validate(self, df: pd.DataFrame) -> bool:
-        """Simple validation check on the normalized data."""
-        required_cols = {"external_id", "platform", "title", "taxonomy_l1"}
-        return required_cols.issubset(df.columns) and not df.empty
+                try:
+                    data = json.loads(message)
+                except Exception:
+                    continue
+                if data.get("type") != "orderbook_delta":
+                    continue
+                msg = data.get("msg") or {}
+                ticker = msg.get("market_ticker")
+                if not ticker:
+                    continue
+                bids = msg.get("bids") or []
+                asks = msg.get("asks") or []
+                # Kalshi ladder entries are [price_cents, size] integers.
+                best_bid = (float(bids[0][0]) / 100.0) if bids and bids[0] else None
+                best_ask = (float(asks[0][0]) / 100.0) if asks and asks[0] else None
+                yield {
+                    "market_id": ticker,
+                    "platform": "kalshi",
+                    "bid": best_bid,
+                    "ask": best_ask,
+                    "last_price": best_bid,
+                    "time": pd.Timestamp.now("UTC"),
+                    "volume_24h": None,
+                    "open_interest": None,
+                    "source": "exchange_ws",
+                    "bids": bids,
+                    "asks": asks,
+                }

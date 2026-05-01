@@ -25,6 +25,7 @@ coverage.xml
 sigil_dev.db
 data/raw/
 data/cache/
+data/orderbook_archive/
 
 .idea/
 .vscode/

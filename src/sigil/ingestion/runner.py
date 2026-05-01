@@ -19,7 +19,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import select
@@ -34,8 +34,14 @@ from sigil.models import Market, MarketPrice, SourceHealth
 logger = logging.getLogger(__name__)
 
 BATCH_INTERVAL = 1.0
+# Repo root is 4 dirnames up from src/sigil/ingestion/runner.py:
+# runner.py -> ingestion -> sigil -> src -> repo_root
 RAW_DATA_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "raw"
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    ),
+    "data",
+    "raw",
 )
 
 
@@ -220,12 +226,25 @@ class StreamProcessor:
                     "failed writing orderbook archive for %s", self.source_name
                 )
 
+        # Dedup per (market_id, source) within the batch — Polymarket
+        # emits multiple price_changes in a single WS message and we can
+        # write multiple ticks at the same microsecond, which collides
+        # with MarketPrice's (time, market_id, source) composite PK.
+        # The full high-frequency record still lives in the JSONL lake
+        # and the orderbook archive; MarketPrice keeps the last per
+        # (market_id, source) per batch.
+        latest_per_key: Dict[Tuple[str, str], dict] = {}
+        for item in current_batch:
+            ext = item.get("market_id")
+            if not ext:
+                continue
+            key = (ext, item.get("source", self.source_name))
+            latest_per_key[key] = item
+
         async with get_session() as session:
             inserted = 0
-            for item in current_batch:
+            for item in latest_per_key.values():
                 external_id = item.get("market_id")
-                if not external_id:
-                    continue
                 market_id = await self.resolver.resolve(session, self.platform, external_id)
                 if market_id is None:
                     self.dropped_unknown_market += 1
@@ -267,30 +286,29 @@ class StreamProcessor:
 
 # --- bootstrap orchestration --------------------------------------------- #
 
-async def _seed_kalshi(kalshi_source: KalshiDataSource, resolver: MarketIdResolver) -> list[str]:
-    kalshi_ids: list[str] = []
-    try:
-        kal_raw = await kalshi_source.fetch()
-        kal_df = kalshi_source.normalize(kal_raw)
-        top_10 = kal_df.head(10).to_dict("records")
-    except Exception as exc:
-        logger.warning("Kalshi fetch failed (%s); using sample seed", exc)
-        top_10 = [
-            {"external_id": "KAL-BTC-100K", "title": "Will Bitcoin reach $100k by EOY?", "taxonomy_l1": "crypto"},
-            {"external_id": "KAL-FED-DEC", "title": "Will the Fed cut rates in December?", "taxonomy_l1": "economics"},
-            {"external_id": "KAL-NFL-KC", "title": "Will the Chiefs win the Super Bowl?", "taxonomy_l1": "sports"},
-        ]
+async def _upsert_markets(
+    rows: Iterable[dict],
+    platform: str,
+    resolver: MarketIdResolver,
+) -> list[str]:
+    """Insert any missing Markets and prime the id resolver. Returns the
+    external_ids in input order."""
+    out: list[str] = []
     async with get_session() as session:
-        for m in top_10:
-            ext_id = m["external_id"]
-            kalshi_ids.append(ext_id)
+        for m in rows:
+            ext_id = m.get("external_id")
+            if not ext_id:
+                continue
+            out.append(ext_id)
             existing = await session.execute(
-                select(Market).where(Market.platform == "kalshi", Market.external_id == ext_id)
+                select(Market).where(
+                    Market.platform == platform, Market.external_id == ext_id
+                )
             )
             market = existing.scalars().first()
             if market is None:
                 market = Market(
-                    platform="kalshi",
+                    platform=platform,
                     external_id=ext_id,
                     title=m.get("title", ext_id),
                     taxonomy_l1=m.get("taxonomy_l1", "general"),
@@ -299,8 +317,50 @@ async def _seed_kalshi(kalshi_source: KalshiDataSource, resolver: MarketIdResolv
                 )
                 session.add(market)
                 await session.flush()
-            resolver.prime([("kalshi", ext_id, market.id)])
-    return kalshi_ids
+            resolver.prime([(platform, ext_id, market.id)])
+    return out
+
+
+async def _seed_kalshi(
+    kalshi_source: KalshiDataSource, resolver: MarketIdResolver, *, top_n: int = 25
+) -> list[str]:
+    """Fetch the first page of Kalshi markets and upsert them.
+
+    Without auth (config.KALSHI_KEY_ID unset), fetch() logs and returns []
+    — we fall back to a tiny hand-curated set so the pipeline still
+    boots end-to-end.
+    """
+    try:
+        raw = await kalshi_source.fetch(limit=top_n)
+        df = kalshi_source.normalize(raw)
+        rows = df.head(top_n).to_dict("records")
+    except Exception as exc:
+        logger.warning("Kalshi fetch failed (%s); using sample seed", exc)
+        rows = []
+    if not rows:
+        rows = [
+            {"external_id": "KXFEDDEC-DEC25-CUT",
+             "title": "Will the Fed cut rates in December?",
+             "taxonomy_l1": "economics"},
+        ]
+    return await _upsert_markets(rows, "kalshi", resolver)
+
+
+async def _seed_polymarket(
+    poly_source: PolymarketDataSource, resolver: MarketIdResolver, *, top_n: int = 25
+) -> list[str]:
+    """Fetch top-volume Polymarket markets, upsert, and return YES-side
+    token ids ready to pass into ``stream_prices`` (the WS subscribes
+    on token ids, not condition_ids)."""
+    try:
+        raw = await poly_source.fetch(limit=top_n)
+        df = poly_source.normalize(raw)
+        rows = df.head(top_n).to_dict("records")
+    except Exception as exc:
+        logger.warning("Polymarket fetch failed (%s)", exc)
+        return []
+    await _upsert_markets(rows, "polymarket", resolver)
+    return poly_source.yes_token_ids
 
 
 async def run_ingestion() -> None:
@@ -314,6 +374,11 @@ async def run_ingestion() -> None:
 
     kalshi_ids = await _seed_kalshi(kalshi_source, resolver)
     await health.record("kalshi", success=True, records_fetched=len(kalshi_ids))
+
+    poly_token_ids = await _seed_polymarket(poly_source, resolver)
+    await health.record(
+        "polymarket", success=True, records_fetched=len(poly_token_ids)
+    )
 
     archive: Optional[OrderbookArchive] = None
     if config.ORDERBOOK_ARCHIVE_ENABLED:
@@ -340,7 +405,7 @@ async def run_ingestion() -> None:
     try:
         await asyncio.gather(
             kalshi_processor.consume_stream(kalshi_source, kalshi_ids),
-            poly_processor.consume_stream(poly_source, []),
+            poly_processor.consume_stream(poly_source, poly_token_ids),
             kalshi_processor.flush_batch(),
             poly_processor.flush_batch(),
         )

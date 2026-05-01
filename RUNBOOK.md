@@ -223,23 +223,74 @@ curl -s http://127.0.0.1:8000/api/health | jq
 curl -s http://127.0.0.1:8000/api/markets | jq '.[0]'
 ```
 
-### 3c. Ingestion + bankroll snapshots
+### 3c. Ingestion (the dashboard server doesn't run it)
 
-The orchestrator (`src/sigil/main.py`) does two things:
+**Important.** `python -m sigil.api.server` is the *read* path: FastAPI
++ widget refresh + bankroll snapshot scheduler. It does **not** start
+ingestion. If you launch only the server, the DB never gets a live
+tick and every widget stays empty.
 
-- Polls Kalshi for market data via `MarketManager.sync_source()`.
-- Runs an APScheduler job every 5 minutes that writes a `BankrollSnapshot`.
-  Without this, the drawdown circuit breaker is permanently INACTIVE
-  (decisions 2F + W2.2(b)).
-
-Requires `KALSHI_API_KEY` etc. in env or in `secrets.enc.yaml`:
+Live ingestion is one foreground process:
 
 ```bash
-.venv/Scripts/python.exe -m sigil.main
+.venv/Scripts/python.exe scripts/start_ingestion.py
 ```
 
-If you're just dogfooding the dashboard with no live data, skip this and
-seed a `BankrollSnapshot` row by hand or via `scripts/smoke_paper_flow.py`.
+That spins up two coroutines concurrently:
+
+- `sigil.main.main_loop` — Kalshi REST market sync every ~60s, plus
+  the bankroll snapshot APScheduler job. Optional settlement WS
+  subscriber when `SETTLEMENT_WS_ENABLED=true`.
+- `sigil.ingestion.runner.run_ingestion` — Kalshi + Polymarket WS
+  price streams, batched into the JSONL lake under `data/raw/` and
+  the `MarketPrice` table. Honors `ORDERBOOK_ARCHIVE_ENABLED` for the
+  per-market per-day archive (TODO-1).
+
+Ctrl+C cancels both.
+
+#### Kalshi credentials (required for live Kalshi)
+
+The current Kalshi API uses RSA-PSS-SHA256 signed headers. Provision
+a key at kalshi.com → Profile → API Keys → "Create new key" — you get
+a UUID-shaped key id and a one-time-download PEM private key file.
+Drop them into `config.py` (not env vars — `Config` is `BaseModel`,
+not `BaseSettings`):
+
+```python
+KALSHI_KEY_ID: Optional[str] = "00000000-0000-0000-0000-000000000000"
+KALSHI_PRIVATE_KEY_PATH: Optional[str] = "/abs/path/to/kalshi-key.pem"
+# OR (less common — paste the PEM inline)
+# KALSHI_PRIVATE_KEY_PEM: Optional[str] = """-----BEGIN PRIVATE KEY-----\n..."""
+```
+
+Without these, the Kalshi adapter logs a warning and returns no
+markets. Polymarket needs no auth — its read-only public feed flows
+either way.
+
+#### Provider quirks worth knowing
+
+- **Kalshi REST** lives at `api.elections.kalshi.com` (the older
+  `trading-api.kalshi.com` is dead — returns 401 with a redirect
+  message).
+- **Polymarket REST** uses `gamma-api.polymarket.com/markets?active=
+  true&closed=false&order=volume&ascending=false`. The CLOB
+  `/markets` endpoint returns *historical* archives first and is
+  unsuitable for discovery.
+- **Polymarket WS** subscribes on token ids (the YES/NO outcome
+  tokens), not condition ids. The runner seeds a YES-token list from
+  gamma's `outcomes`/`clobTokenIds` and only emits ticks for the YES
+  side (decision 1C — read-only; binary markets only). NO-side
+  updates are ignored.
+- **Within-batch dedup**: Polymarket can emit multiple `price_changes`
+  in one WS frame; we keep only the latest tick per `(market_id,
+  source)` per 1-second batch when writing to `MarketPrice` (composite
+  PK is `(time, market_id, source)`). The full record is preserved in
+  the JSONL lake and the orderbook archive — only the relational
+  table dedups.
+
+If you're just dogfooding the dashboard with no live data, skip
+ingestion and run `scripts/seed_dev_data.py` instead — that fills the
+DB with realistic-looking DEV-prefixed rows.
 
 ### 3d. Settlement subscriber
 
