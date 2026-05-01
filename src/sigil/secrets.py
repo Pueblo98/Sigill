@@ -35,6 +35,12 @@ _INJECTABLE_KEYS = (
     "ODDSPIPE_API_KEY",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
+    # Operational flags that often differ between dev + prod. Same
+    # injection mechanism as secrets — just lets the operator flip them
+    # via secrets.local.yaml without editing config.py.
+    "DASHBOARD_ENABLED",
+    "DIRECT_EXCHANGE_WS_ENABLED",
+    "DEFAULT_MODE",
 )
 
 

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}{{ market.title }}{% endblock %}
+{% block content %}
+<section class="page market-detail">
+  <header class="market-detail__header">
+    <div class="market-detail__title-row">
+      <h1 class="market-detail__title">{{ market.title }}</h1>
+      <span class="market-detail__platform">{{ market.platform }}</span>
+      <span class="market-detail__status status-{{ market.status }}">{{ market.status }}</span>
+    </div>
+    <div class="market-detail__breadcrumb">
+      {% if breadcrumb.series %}
+        <span class="market-detail__crumb">{{ breadcrumb.series }}</span>
+        <span class="market-detail__crumb-sep">›</span>
+        <span class="market-detail__crumb">{{ breadcrumb.event }}</span>
+        <span class="market-detail__crumb-sep">›</span>
+      {% endif %}
+      <code class="market-detail__crumb-ticker">{{ breadcrumb.ticker }}</code>
+    </div>
+    <div class="market-detail__meta">
+      <span>category: <strong>{{ market.taxonomy_l1 or "general" }}</strong></span>
+      {% if market.resolution_date %}
+        <span>resolves: <strong>{{ market.resolution_date }}</strong></span>
+      {% endif %}
+    </div>
+
+    {% if latest_prediction %}
+      <div class="market-detail__top-stat">
+        <span class="market-detail__top-stat__label">Latest signal</span>
+        <span class="market-detail__top-stat__model">{{ latest_prediction.model_id }} {{ latest_prediction.model_version }}</span>
+        <span class="market-detail__top-stat__edge edge-{{ 'pos' if (latest_prediction.edge or 0) >= 0 else 'neg' }}">
+          edge {{ "%+.3f"|format(latest_prediction.edge or 0) }}
+        </span>
+        <span class="market-detail__top-stat__pred">
+          predicted {{ "%.3f"|format(latest_prediction.predicted_prob or 0) }}
+          @ market {{ "%.3f"|format(latest_prediction.market_price_at_prediction or 0) }}
+        </span>
+      </div>
+    {% endif %}
+  </header>
+
+  <section class="market-detail__price">
+    <h2>Price</h2>
+    {% if latest_price %}
+      <div class="market-detail__stats-grid">
+        <div class="market-detail__stat">
+          <div class="market-detail__stat__label">Last</div>
+          <div class="market-detail__stat__value">
+            {{ "%.3f"|format(latest_price.last_price) if latest_price.last_price is not none else "-" }}
+          </div>
+        </div>
+        <div class="market-detail__stat">
+          <div class="market-detail__stat__label">Volume 24h</div>
+          <div class="market-detail__stat__value">
+            {{ "{:,.0f}".format(latest_price.volume_24h) if latest_price.volume_24h is not none else "-" }}
+          </div>
+        </div>
+        <div class="market-detail__stat">
+          <div class="market-detail__stat__label">Open Interest</div>
+          <div class="market-detail__stat__value">
+            {{ "{:,.0f}".format(latest_price.open_interest) if latest_price.open_interest is not none else "-" }}
+          </div>
+        </div>
+        <div class="market-detail__stat">
+          <div class="market-detail__stat__label">Bid · Ask</div>
+          <div class="market-detail__stat__value">
+            {{ "%.3f"|format(latest_price.bid) if latest_price.bid is not none else "-" }}
+            ·
+            {{ "%.3f"|format(latest_price.ask) if latest_price.ask is not none else "-" }}
+          </div>
+        </div>
+      </div>
+      <div class="market-detail__price-as-of">
+        as of {{ latest_price.time }}
+      </div>
+    {% else %}
+      <div class="market-detail__empty">No price data yet.</div>
+    {% endif %}
+    <div class="market-detail__sparkline">
+      {{ sparkline_svg|safe }}
+    </div>
+  </section>
+
+  <section class="market-detail__predictions">
+    <h2>Predictions</h2>
+    {% if predictions %}
+      <table class="market-detail__table">
+        <thead><tr>
+          <th>When</th><th>Model</th><th>Predicted</th><th>Market</th>
+          <th>Edge</th><th>Confidence</th><th>Mediating factors</th>
+        </tr></thead>
+        <tbody>
+          {% for p in predictions %}
+            <tr>
+              <td>{{ p.created_at }}</td>
+              <td>{{ p.model_id }} {{ p.model_version }}</td>
+              <td>{{ "%.3f"|format(p.predicted_prob) if p.predicted_prob is not none else "-" }}</td>
+              <td>{{ "%.3f"|format(p.market_price_at_prediction) if p.market_price_at_prediction is not none else "-" }}</td>
+              <td class="edge-{{ 'pos' if (p.edge or 0) >= 0 else 'neg' }}">
+                {{ "%+.3f"|format(p.edge) if p.edge is not none else "-" }}
+              </td>
+              <td>{{ "%.2f"|format(p.confidence) if p.confidence is not none else "-" }}</td>
+              <td class="market-detail__chips">
+                {% if p.features %}
+                  {% for f in p.features %}
+                    <span class="chip">{{ f.name }}=<strong>{{ "%.4g"|format(f.value) }}</strong></span>
+                  {% endfor %}
+                {% else %}
+                  <span class="market-detail__chip-empty">no features recorded</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="market-detail__empty">No predictions for this market yet.</div>
+    {% endif %}
+  </section>
+
+  <section class="market-detail__lifecycle">
+    <h2>Trade lifecycle</h2>
+    {% if lifecycle %}
+      <table class="market-detail__table">
+        <thead><tr>
+          <th>When</th><th>Action</th><th>Side</th><th>Outcome</th>
+          <th>Qty</th><th>Price</th><th>Status</th><th>Realized PnL</th>
+        </tr></thead>
+        <tbody>
+          {% for e in lifecycle %}
+            <tr class="lifecycle-{{ e.kind }}">
+              <td>{{ e.when }}</td>
+              <td>{{ e.action }}</td>
+              <td>{{ e.side or "-" }}</td>
+              <td>{{ e.outcome or "-" }}</td>
+              <td>{{ e.quantity or "-" }}</td>
+              <td>{{ "%.3f"|format(e.price) if e.price is not none else "-" }}</td>
+              <td>{{ e.status }}</td>
+              <td>
+                {% if e.realized_pnl is not none %}
+                  <span class="edge-{{ 'pos' if e.realized_pnl >= 0 else 'neg' }}">
+                    {{ "%+.2f"|format(e.realized_pnl) }}
+                  </span>
+                {% else %}-{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="market-detail__empty">No orders or positions yet for this market.</div>
+    {% endif %}
+  </section>
+
+  {% if siblings_event or siblings_taxonomy %}
+    <section class="market-detail__siblings">
+      <h2>Similar markets</h2>
+      {% if siblings_event %}
+        <h3>Same event</h3>
+        <ul class="market-detail__sibling-list">
+          {% for s in siblings_event %}
+            <li>
+              <a href="/market/{{ s.external_id }}">{{ s.title }}</a>
+              <span class="market-detail__sibling-meta">
+                {{ s.platform }}
+                {% if s.last_price is not none %} · last {{ "%.3f"|format(s.last_price) }}{% endif %}
+                {% if s.volume_24h is not none %} · vol {{ "{:,.0f}".format(s.volume_24h) }}{% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if siblings_taxonomy %}
+        <h3>Same category</h3>
+        <ul class="market-detail__sibling-list">
+          {% for s in siblings_taxonomy %}
+            <li>
+              <a href="/market/{{ s.external_id }}">{{ s.title }}</a>
+              <span class="market-detail__sibling-meta">
+                {{ s.platform }}
+                {% if s.last_price is not none %} · last {{ "%.3f"|format(s.last_price) }}{% endif %}
+                {% if s.volume_24h is not none %} · vol {{ "{:,.0f}".format(s.volume_24h) }}{% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  {% endif %}
+</section>
+{% endblock %}

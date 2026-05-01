@@ -56,7 +56,12 @@ class RefreshOrchestrator:
         return list(self._widgets)
 
     def start(self, scheduler: Any, session_factory: SessionFactory) -> None:
-        """Register the 60s tick job on the supplied AsyncIOScheduler."""
+        """Register the 60s tick job on the supplied AsyncIOScheduler.
+
+        ``next_run_time`` is set to "now" so the first refresh fires
+        immediately instead of after a full interval — avoids the
+        cold-start "Loading..." window operators always notice.
+        """
         self._scheduler = scheduler
         self._session_factory = session_factory
         self._semaphore = asyncio.Semaphore(self._concurrency)
@@ -68,6 +73,7 @@ class RefreshOrchestrator:
             replace_existing=True,
             max_instances=1,
             coalesce=True,
+            next_run_time=datetime.now(timezone.utc),
         )
 
     async def tick(self, *, now: Optional[datetime] = None) -> None:

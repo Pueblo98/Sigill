@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sigil.api.routes import router
 from sigil.config import config
 from sigil.db import AsyncSessionLocal, init_db
-from sigil.secrets import inject_into_config, load_secrets
+from sigil.secrets import load_and_inject
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +22,9 @@ _scheduler: Optional[AsyncIOScheduler] = None
 async def lifespan(app: FastAPI):
     global _scheduler
     await init_db()
-    secrets = load_secrets()
-    if secrets:
-        inject_into_config(secrets)
-        logger.info(f"Loaded {len(secrets)} secret(s) from sops.")
+    n_secrets = load_and_inject()
+    if n_secrets:
+        logger.info("Loaded %d secret(s)/flag(s) from sops + secrets.local.yaml", n_secrets)
 
     if config.DASHBOARD_ENABLED:
         # Local imports keep the dashboard's pydantic models off the import

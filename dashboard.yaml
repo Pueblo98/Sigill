@@ -41,8 +41,9 @@ pages:
         widgets:
           - type: market_list
             cache: 1m
-            sort: volume_desc
             limit: 100
+            # sort defaults to volume_desc; click any market title to
+            # drill into its detail page.
 
   - name: spreads
     title: Cross-platform spreads

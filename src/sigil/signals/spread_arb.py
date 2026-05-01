@@ -20,14 +20,15 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import List, Optional
 from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sigil.ingestion.oddspipe import OddsPipeDataSource, SpreadMatch, SpreadSide
-from sigil.models import Market, Prediction
+from sigil.models import Market, Prediction, PredictionFeature
+from sigil.models_registry import ModelDef, register_model
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,15 @@ logger = logging.getLogger(__name__)
 
 MODEL_ID = "spread_arb"
 MODEL_VERSION = "v0"
+
+
+register_model(ModelDef(
+    model_id=MODEL_ID,
+    version=MODEL_VERSION,
+    display_name="Stat Arb (Cross-Platform)",
+    description="Volume-weighted true probability across Kalshi & Polymarket spreads.",
+    tags=("arbitrage", "cross-platform", "binary-yes"),
+))
 
 
 async def generate_spread_predictions(
@@ -169,8 +179,9 @@ async def _emit_for_match(
         if recent is not None:
             continue
 
+        prediction_id = uuid4()
         session.add(Prediction(
-            id=uuid4(),
+            id=prediction_id,
             market_id=market.id,
             model_id=MODEL_ID,
             model_version=MODEL_VERSION,
@@ -179,6 +190,29 @@ async def _emit_for_match(
             market_price_at_prediction=round(side.yes_price, 4),
             edge=round(edge, 4),
         ))
+        # PredictionFeature rows make "why did the model think this?"
+        # legible on the market detail page. One row per side per
+        # signal-relevant scalar.
+        poly = next((s for s in match.sides if s.platform == "polymarket"), None)
+        kalshi = next((s for s in match.sides if s.platform == "kalshi"), None)
+        feats: List[tuple[str, float]] = [
+            ("match_score", float(match.score)),
+            ("true_prob_volume_weighted", float(true_p)),
+            ("yes_diff", float(match.yes_diff)),
+        ]
+        if poly is not None:
+            feats.append(("polymarket_yes_price", float(poly.yes_price)))
+            feats.append(("polymarket_volume_usd", float(poly.volume_usd)))
+        if kalshi is not None:
+            feats.append(("kalshi_yes_price", float(kalshi.yes_price)))
+            feats.append(("kalshi_volume_usd", float(kalshi.volume_usd)))
+        for name, value in feats:
+            session.add(PredictionFeature(
+                prediction_id=prediction_id,
+                feature_name=name,
+                value=value,
+                version=1,
+            ))
         n += 1
 
     return n

@@ -408,3 +408,265 @@ svg.chart, svg.calibration, svg.brier, svg.roi-curve {
   max-width: 100%;
   background: transparent;
 }
+
+/* ------------------------------------------------------------------
+ * Market detail page
+ * ------------------------------------------------------------------ */
+.market-detail__header {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.market-detail__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.market-detail__title {
+  margin: 0;
+  font-size: 18px;
+}
+.market-detail__platform {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 2px;
+}
+.market-detail__meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.market-detail__meta code {
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+.market-detail__top-stat {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.market-detail__top-stat__label {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 10px;
+  color: var(--fg-faint);
+}
+.market-detail__top-stat__edge {
+  font-size: 14px;
+  font-weight: 600;
+}
+.edge-pos { color: var(--positive); }
+.edge-neg { color: var(--negative); }
+
+.market-detail h2 {
+  margin: 16px 0 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-muted);
+}
+.market-detail__price {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.market-detail__price-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.market-detail__price-as-of {
+  margin-left: auto;
+  color: var(--fg-faint);
+}
+.market-detail__sparkline svg { width: 100%; height: auto; }
+
+.market-detail__predictions,
+.market-detail__lifecycle,
+.market-detail__siblings {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+.market-detail__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.market-detail__table th,
+.market-detail__table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.market-detail__table thead th {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+  color: var(--fg-faint);
+}
+
+.market-detail__chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.market-detail__chips .chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 10px;
+  color: var(--fg-muted);
+}
+.market-detail__chips .chip strong { color: var(--fg); font-weight: 500; }
+.market-detail__chip-empty { color: var(--fg-faint); font-size: 10px; }
+
+.lifecycle-position td:first-child::before { content: "●  "; color: var(--accent); }
+.lifecycle-order td:first-child::before { content: "○  "; color: var(--fg-muted); }
+
+.market-detail__siblings h3 {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.market-detail__sibling-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.market-detail__sibling-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.market-detail__sibling-list li:last-child { border-bottom: none; }
+.market-detail__sibling-list a {
+  color: var(--fg);
+  text-decoration: none;
+}
+.market-detail__sibling-list a:hover { color: var(--accent); }
+.market-detail__sibling-meta {
+  color: var(--fg-faint);
+  font-size: 10px;
+  margin-left: 8px;
+  font-family: var(--font-mono);
+}
+
+.market-detail__empty {
+  padding: 16px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+
+.widget-market-list a {
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--fg-faint);
+}
+.widget-market-list a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Market detail v2 — stats grid + breadcrumb (ported from pykalshi) */
+
+.market-detail__status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+.market-detail__status.status-open,
+.market-detail__status.status-active {
+  color: var(--positive);
+  border-color: var(--positive);
+}
+.market-detail__status.status-closed,
+.market-detail__status.status-settled {
+  color: var(--fg-faint);
+}
+
+.market-detail__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.market-detail__crumb {
+  color: var(--fg-muted);
+}
+.market-detail__crumb-sep {
+  color: var(--fg-faint);
+  opacity: 0.6;
+}
+.market-detail__crumb-ticker {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 10px;
+  color: var(--fg-faint);
+}
+
+.market-detail__stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (max-width: 768px) {
+  .market-detail__stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.market-detail__stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+.market-detail__stat__label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+.market-detail__stat__value {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--fg);
+}

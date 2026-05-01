@@ -131,45 +131,23 @@ async def test_join_with_latest_price(session):
 
 
 @pytest.mark.asyncio
-async def test_min_edge_filter_uses_latest_prediction(session):
-    m1 = Market(
-        platform="kalshi", external_id="E-1", title="High edge",
-        taxonomy_l1="x", status="open",
+async def test_legacy_min_edge_yaml_is_silently_ignored(session):
+    """Older dashboard.yaml configs may still pass filters: { min_edge: ... }.
+    The widget must not error — the field is dropped, all markets show."""
+    m = Market(
+        platform="kalshi", external_id="LEGACY-1",
+        title="Should still appear", taxonomy_l1="x", status="open",
     )
-    m2 = Market(
-        platform="kalshi", external_id="E-2", title="Low edge",
-        taxonomy_l1="x", status="open",
-    )
-    m3 = Market(
-        platform="kalshi", external_id="E-3", title="No prediction",
-        taxonomy_l1="x", status="open",
-    )
-    session.add_all([m1, m2, m3])
-    await session.commit()
-    await session.refresh(m1)
-    await session.refresh(m2)
-
-    now = datetime.now(timezone.utc)
-    session.add_all(
-        [
-            Prediction(
-                market_id=m1.id, model_id="a", model_version="1",
-                predicted_prob=0.6, edge=0.10, created_at=now,
-            ),
-            Prediction(
-                market_id=m2.id, model_id="a", model_version="1",
-                predicted_prob=0.6, edge=0.01, created_at=now,
-            ),
-        ]
-    )
+    session.add(m)
     await session.commit()
 
-    w = _make_widget(min_edge=0.05)
-    data = await w.fetch(session)
-    titles = [r.title for r in data]
-    assert "High edge" in titles
-    assert "Low edge" not in titles
-    assert "No prediction" not in titles
+    cfg = MarketListConfig(
+        type="market_list", cache="1m",
+        filters={"min_edge": 0.05, "platform": "kalshi"},
+    )
+    w = MarketListWidget(cfg)
+    rows = await w.fetch(session)
+    assert any(r.title == "Should still appear" for r in rows)
 
 
 @pytest.mark.asyncio

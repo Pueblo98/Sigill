@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from sigil.config import config as _root_config
 from sigil.dashboard.config import WidgetConfig
 from sigil.dashboard.widgets.bankroll_summary import (
     BankrollSummaryConfig,
@@ -61,13 +62,13 @@ async def test_returns_latest_snapshot(session):
     assert data.equity == 5500.0
     assert data.realized_pnl == 400.0
     assert data.unrealized_pnl == 100.0
-    # default BANKROLL_INITIAL=5000 -> ROI = (5500-5000)/5000 * 100 = 10
-    assert data.roi_pct == pytest.approx(10.0)
+    expected_roi = (5500.0 - _root_config.BANKROLL_INITIAL) / _root_config.BANKROLL_INITIAL * 100.0
+    assert data.roi_pct == pytest.approx(expected_roi)
     assert data.settled_trades_total == 12
 
     out = w.render(data)
     assert "$5,500.00" in out
-    assert "+10.00%" in out
+    assert f"{expected_roi:+.2f}%" in out
     assert "12" in out
 
 

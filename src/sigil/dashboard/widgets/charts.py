@@ -193,6 +193,44 @@ def render_roi_curve_svg(
     return _figure_to_svg(fig)
 
 
+def render_price_sparkline_svg(
+    prices: Sequence[float],
+    *,
+    theme: Optional[Theme] = None,
+) -> str:
+    """400x100 sparkline of a single price series (typically last_price).
+
+    Color is positive when the series ends higher than it started, negative
+    otherwise. Empty input produces the placeholder SVG so the layout stays
+    stable while data accumulates.
+    """
+    if not prices:
+        return _empty_svg(400, 100, "no price history", theme=theme)
+
+    t = _resolve_theme(theme)
+    ys = [float(p) for p in prices if p is not None]
+    if not ys:
+        return _empty_svg(400, 100, "no price history", theme=theme)
+    xs = list(range(len(ys)))
+
+    fig, ax = plt.subplots(figsize=(4.0, 1.0), dpi=100)
+    ax.set_facecolor(t.surface)
+    fig.patch.set_facecolor(t.background)
+
+    line_color = t.positive if ys[-1] >= ys[0] else t.negative
+    ax.plot(xs, ys, color=line_color, linewidth=1.2)
+    ax.fill_between(xs, ys, min(ys), color=line_color, alpha=0.15)
+
+    ax.set_xlabel("tick #", color=t.accent, fontsize=7)
+    ax.set_ylabel("price", color=t.accent, fontsize=7)
+    ax.tick_params(colors=t.accent, labelsize=6)
+    for spine in ax.spines.values():
+        spine.set_edgecolor(t.accent)
+        spine.set_linewidth(0.5)
+
+    return _figure_to_svg(fig)
+
+
 def render_brier_sparkline_svg(
     daily_briers: Sequence[float],
     *,

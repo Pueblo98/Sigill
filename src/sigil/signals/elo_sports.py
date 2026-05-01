@@ -31,7 +31,8 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sigil.models import Market, MarketPrice, Prediction
+from sigil.models import Market, MarketPrice, Prediction, PredictionFeature
+from sigil.models_registry import ModelDef, register_model
 
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,15 @@ logger = logging.getLogger(__name__)
 
 MODEL_ID = "elo_sports"
 MODEL_VERSION = "v0"
+
+
+register_model(ModelDef(
+    model_id=MODEL_ID,
+    version=MODEL_VERSION,
+    display_name="Elo Sports (NBA)",
+    description="Elo win-probability vs market price for Kalshi NBA single-game tickers.",
+    tags=("sports", "elo", "scaffold"),
+))
 
 
 # Hand-seeded NBA team Elo ratings, late 2025-26 season order-of-magnitude.
@@ -194,8 +204,9 @@ async def generate_elo_predictions(
         if recent is not None:
             continue
 
+        prediction_id = uuid4()
         session.add(Prediction(
-            id=uuid4(),
+            id=prediction_id,
             market_id=market.id,
             model_id=MODEL_ID,
             model_version=MODEL_VERSION,
@@ -204,6 +215,21 @@ async def generate_elo_predictions(
             market_price_at_prediction=round(market_price, 4),
             edge=round(edge, 4),
         ))
+        # Mediating-factor breadcrumbs for the market detail page.
+        home_elo = _NBA_ELO.get(parsed.home, 0.0)
+        away_elo = _NBA_ELO.get(parsed.away, 0.0)
+        for name, value in (
+            ("home_team_elo", float(home_elo)),
+            ("away_team_elo", float(away_elo)),
+            ("home_advantage_elo", 60.0),
+            ("home_win_probability", float(win_p)),
+        ):
+            session.add(PredictionFeature(
+                prediction_id=prediction_id,
+                feature_name=name,
+                value=value,
+                version=1,
+            ))
         n += 1
 
     if n > 0:

@@ -199,6 +199,49 @@ def _register_routes(app: FastAPI, state: DashboardState) -> None:
             return RedirectResponse(url="/page/_missing", status_code=302)
         return RedirectResponse(url=f"/page/{page.name}", status_code=302)
 
+    @app.get("/market/{external_id}", include_in_schema=False)
+    async def _market_detail(external_id: str, request: Request) -> HTMLResponse:
+        # Local imports keep the dashboard's pydantic models off the
+        # critical path of any test that doesn't opt in.
+        from sigil.dashboard.views.market_detail import build_context
+        from sigil.db import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as session:
+            ctx = await build_context(session, external_id, theme=state.config.theme)
+        if ctx is None:
+            ctx_404 = {
+                "request": request,
+                "page_title": "Market not found",
+                "current_page": None,
+                "nav_pages": _nav_pages(state.config),
+                "theme": state.config.theme.model_dump(),
+                "now_iso": datetime.now(timezone.utc).isoformat(),
+                "requested_name": external_id,
+            }
+            return state.templates.TemplateResponse(
+                request, "404.html", ctx_404, status_code=404
+            )
+        page_ctx = {
+            "request": request,
+            "page_title": ctx.market.title,
+            "current_page": None,
+            "nav_pages": _nav_pages(state.config),
+            "theme": state.config.theme.model_dump(),
+            "now_iso": datetime.now(timezone.utc).isoformat(),
+            "market": ctx.market,
+            "breadcrumb": ctx.breadcrumb,
+            "latest_price": ctx.latest_price,
+            "sparkline_svg": ctx.sparkline_svg,
+            "latest_prediction": ctx.latest_prediction,
+            "predictions": ctx.predictions,
+            "lifecycle": ctx.lifecycle,
+            "siblings_event": ctx.siblings_event,
+            "siblings_taxonomy": ctx.siblings_taxonomy,
+        }
+        return state.templates.TemplateResponse(
+            request, "market_detail.html", page_ctx
+        )
+
     @app.get("/page/{page_name}", include_in_schema=False)
     async def _page(page_name: str, request: Request) -> HTMLResponse:
         page = next((p for p in state.config.pages if p.name == page_name), None)
