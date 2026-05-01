@@ -388,8 +388,60 @@ Smoke check:
 Asserts that two markets routed through one batch each land in their
 own per-day file with depth + renamed `external_id` preserved.
 
-The reader (replay archive into `Backtester`) is **not yet built**;
-the JSONL format is the contract. See TODO-9 in `TODOS.md`.
+Replay the archive into a backtest with
+`sigil.backtesting.replay.iter_archive_ticks` (see next section).
+
+---
+
+## Replaying the archive into a backtest
+
+`Backtester` takes any `Iterable[PriceTick | SettlementEvent]`. The
+replay reader is pure I/O — caller resolves `(platform, external_id)`
+to `Market.id` once and passes the mapping in:
+
+```python
+import asyncio
+from datetime import date
+
+from sigil.backtesting.engine import BacktestConfig, Backtester
+from sigil.backtesting.replay import iter_archive_ticks, load_market_id_map
+from sigil.config import config
+from sigil.db import AsyncSessionLocal
+
+
+async def replay():
+    async with AsyncSessionLocal() as session:
+        mapping = await load_market_id_map(session, platform="kalshi")
+
+    ticks = list(iter_archive_ticks(
+        config.ORDERBOOK_ARCHIVE_DIR,
+        market_id_map=mapping,
+        start_date=date(2026, 4, 1),
+        end_date=date(2026, 4, 30),
+        external_ids=["KAL-BTC-100K", "KAL-NFL-KC"],   # optional filter
+    ))
+
+    cfg = BacktestConfig(
+        start_date=ticks[0].timestamp,
+        end_date=ticks[-1].timestamp,
+        initial_capital=5000.0,
+    )
+    result = Backtester(my_strategy, ticks, cfg).run()
+    print(result.final_equity, len(result.trades))
+
+
+asyncio.run(replay())
+```
+
+Markets that exist in the archive but not in the DB are logged once
+and skipped — that lets you replay last month's tape after dropping a
+market without crashing.
+
+Smoke check (writer → reader → `Backtester` end-to-end):
+
+```bash
+.venv/Scripts/python.exe scripts/smoke_archive_replay.py
+```
 
 ---
 

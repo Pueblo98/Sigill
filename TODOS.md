@@ -143,28 +143,17 @@ migration, and a `persist_backtest_result(session, result)` helper.
 
 ---
 
-## TODO-9: Replay reader — orderbook archive → Backtester
+## TODO-9: ~~Replay reader — orderbook archive → Backtester~~ — DONE
 
-**What:** A reader that streams `<ORDERBOOK_ARCHIVE_DIR>/kalshi/<ext>/<date>.jsonl`
-files into `Iterable[PriceTick]` for `Backtester(data_iter=...)`. Resolve
-`(platform, external_id) → Market.id` (UUID) once per market per run,
-cache it, then yield ticks chronologically. Filter by date range / market
-list at the file-glob layer.
+**Status:** Shipped. `sigil.backtesting.replay.iter_archive_ticks`
+yields chronologically-sorted `PriceTick` instances across a date range
++ optional `external_ids` filter. `load_market_id_map(session,
+platform="kalshi")` is the DB-resolve helper. `last_price` maps to
+`PriceTick.trade_price`; `bids`/`asks` ladder is reserved for a future
+depth-aware engine.
 
-**Why:** TODO-1 just shipped the writer; the format is the contract. The
-reader unlocks "did this strategy work last week" against the live
-Kalshi tape instead of synthetic fixtures.
-
-**Where to put it:** `src/sigil/backtesting/replay.py`. The backtester
-takes `Iterable[Event]` (`engine.py:132-149`); a generator that yields
-`PriceTick` is enough — no new framework needed.
-
-**Format reminder:** each JSONL line has `external_id`, `time` (ISO UTC),
-`bid`, `ask`, `last_price`, `volume_24h`, `bids`, `asks`, `source`.
-Reader pulls `bid`/`ask`/`last_price`/`volume_24h` into `PriceTick`;
-`bids`/`asks` are reserved for a future depth-aware backtester.
-
-**Discovered:** TODO-1 ship, 2026-05-01.
+See `RUNBOOK.md` ("Replaying the archive into a backtest") for the
+operator recipe.
 
 ---
 
