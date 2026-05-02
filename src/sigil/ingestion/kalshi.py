@@ -42,6 +42,95 @@ _DEFAULT_REST = "https://api.elections.kalshi.com/trade-api/v2"
 _DEFAULT_WS = "wss://api.elections.kalshi.com/trade-api/ws/v2"
 
 
+# Kalshi's /events/{ticker} returns the official category but is auth-gated.
+# This map covers the dominant series prefixes seen in /markets responses.
+# Source: hand-mapped from observed event_tickers in production DB. Replace
+# with a real lookup when Kalshi creds are available.
+_KALSHI_PREFIX_CATEGORY: tuple[tuple[str, str], ...] = (
+    # Sports
+    ("KXNBA", "sports"),
+    ("KXNFL", "sports"),
+    ("KXMLB", "sports"),
+    ("KXNHL", "sports"),
+    ("KXEPL", "sports"),
+    ("KXLALIGA", "sports"),
+    ("KXBUNDES", "sports"),
+    ("KXSERIEA", "sports"),
+    ("KXLIGUE1", "sports"),
+    ("KXUFC", "sports"),
+    ("KXBOX", "sports"),
+    ("KXTENNIS", "sports"),
+    ("KXATP", "sports"),
+    ("KXWTA", "sports"),
+    ("KXGOLF", "sports"),
+    ("KXPGA", "sports"),
+    ("KXMASTERS", "sports"),
+    ("KXCFB", "sports"),
+    ("KXNCAAB", "sports"),
+    ("KXNCAAF", "sports"),
+    ("KXOLYMPIC", "sports"),
+    ("KXFORMULA", "sports"),
+    ("KXF1", "sports"),
+    ("KXNASCAR", "sports"),
+    ("KXCRICKET", "sports"),
+    ("KXIPL", "sports"),
+    # Economics
+    ("KXFED", "economics"),
+    ("KXCPI", "economics"),
+    ("KXGDP", "economics"),
+    ("KXJOBS", "economics"),
+    ("KXNFP", "economics"),
+    ("KXUNRATE", "economics"),
+    ("KXRECESS", "economics"),
+    ("KXTREASURY", "economics"),
+    # Crypto
+    ("KXBTC", "crypto"),
+    ("KXETH", "crypto"),
+    ("KXSOL", "crypto"),
+    ("KXCRYPTO", "crypto"),
+    # Politics / elections
+    ("KXPRES", "politics"),
+    ("KXELECTION", "politics"),
+    ("KXGOV", "politics"),
+    ("KXSENATE", "politics"),
+    ("KXHOUSE", "politics"),
+    ("KXCONGRESS", "politics"),
+    # Climate / weather
+    ("KXTEMP", "climate"),
+    ("KXHURRICANE", "climate"),
+    ("KXHIGHNY", "climate"),
+    ("KXHIGH", "climate"),
+    # Entertainment / culture
+    ("KXOSCAR", "entertainment"),
+    ("KXEMMY", "entertainment"),
+    ("KXGRAMMY", "entertainment"),
+    ("KXBOXOFF", "entertainment"),
+    ("KXSPOTIFY", "entertainment"),
+    # Tech
+    ("KXAI", "tech"),
+    ("KXOPENAI", "tech"),
+    ("KXMUSK", "tech"),
+)
+
+
+def _infer_category_from_ticker(event_ticker: Optional[str], ticker: Optional[str]) -> str:
+    """Map a Kalshi ticker (or event_ticker) to a Sigil taxonomy_l1.
+
+    Match order: longest prefix wins so 'KXNCAAF' beats a hypothetical
+    'KX' fallback. Falls back to 'general' when nothing matches.
+    """
+    candidate = (event_ticker or ticker or "").upper()
+    if not candidate:
+        return "general"
+    best_prefix = ""
+    best_category = "general"
+    for prefix, category in _KALSHI_PREFIX_CATEGORY:
+        if candidate.startswith(prefix) and len(prefix) > len(best_prefix):
+            best_prefix = prefix
+            best_category = category
+    return best_category
+
+
 def _resolve_auth() -> KalshiAuthConfig:
     return KalshiAuthConfig.from_config(
         key_id=config.KALSHI_KEY_ID,
@@ -129,8 +218,11 @@ class KalshiDataSource(DataSource):
                 "external_id": ticker,
                 "platform": "kalshi",
                 "title": m.get("title") or m.get("yes_sub_title") or ticker,
-                # Kalshi has moved category off /markets; default to general.
-                "taxonomy_l1": "general",
+                # Kalshi /markets no longer carries category — derive from
+                # the event_ticker prefix until /events/{ticker} auth lands.
+                "taxonomy_l1": _infer_category_from_ticker(
+                    m.get("event_ticker"), ticker
+                ),
                 "market_type": m.get("market_type") or "binary",
                 "status": internal_status,
                 "resolution_date": m.get("expiration_time")

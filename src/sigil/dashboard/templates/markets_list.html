@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Markets{% endblock %}
+{% block content %}
+<section class="page markets-list">
+  <header class="markets-list__header">
+    <h1 class="markets-list__title">Markets</h1>
+
+    {# In-page tab strip — sigil-frontend/DESIGN.md "vertical IA" rule:
+       sub-navigation lives inside the section, not as a new top-level
+       sidebar/topbar entry. #}
+    <nav class="markets-list__tabs">
+      <a class="markets-list__tab{% if view == 'all' %} markets-list__tab--active{% endif %}"
+         href="/markets?view=all">All</a>
+      <a class="markets-list__tab{% if view == 'spreads' %} markets-list__tab--active{% endif %}"
+         href="/markets?view=spreads">Cross-platform spreads</a>
+      <a class="markets-list__tab{% if view == 'archived' %} markets-list__tab--active{% endif %}"
+         href="/markets?view=archived">Archived</a>
+    </nav>
+
+    {% if view == 'spreads' %}
+      <div class="markets-list__count">
+        Display-only — Polymarket leg never auto-executes (decision 1C).
+      </div>
+    {% else %}
+      <div class="markets-list__count">
+        Showing {{ rows|length }} of {{ total }}
+        {{ "archived markets" if view == 'archived' else "markets" }}
+        {% if page > 1 or total_pages > 1 %}
+          — page {{ page }} of {{ total_pages }}
+        {% endif %}
+      </div>
+
+      <form class="markets-list__filters" method="get" action="/markets">
+        {# Preserve the active tab across filter submissions. #}
+        <input type="hidden" name="view" value="{{ view }}">
+
+        <div class="markets-list__filter">
+          <label for="q">Search</label>
+          <input type="text" id="q" name="q" value="{{ q }}"
+                 placeholder="title contains…" autocomplete="off">
+        </div>
+
+        <div class="markets-list__filter">
+          <label for="platform">Platform</label>
+          <select id="platform" name="platform">
+            <option value="">all</option>
+            {% for p in platforms %}
+              <option value="{{ p }}" {% if p == platform %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="markets-list__filter">
+          <label for="category">Category</label>
+          <select id="category" name="category">
+            <option value="">all</option>
+            {% for c in categories %}
+              <option value="{{ c }}" {% if c == category %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="markets-list__filter">
+          <label for="status">Status</label>
+          <select id="status" name="status">
+            <option value="" {% if status == "" %}selected{% endif %}>auto</option>
+            <option value="any" {% if status == "any" %}selected{% endif %}>any</option>
+            {% for s in statuses %}
+              <option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="markets-list__filter markets-list__filter--actions">
+          <button type="submit" class="markets-list__submit">Apply</button>
+          <a class="markets-list__reset" href="/markets?view={{ view }}">Reset</a>
+        </div>
+      </form>
+    {% endif %}
+  </header>
+
+  {% if view == 'spreads' %}
+    {# Cross-platform spreads tab — render the cached
+       cross_platform_spreads widget HTML inline. The widget is still
+       instantiated by the YAML 'spreads' page so the
+       RefreshOrchestrator keeps its 5m TTL cache populated. #}
+    <div class="markets-list__embedded-widget">
+      {{ spreads_widget_html|safe }}
+    </div>
+  {% elif rows %}
+    <table class="markets-list__table">
+      <thead>
+        <tr>
+          <th>Platform</th>
+          <th>Category</th>
+          <th>Market</th>
+          <th>Status</th>
+          <th>Last</th>
+          <th>Vol 24h</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr class="{% if r.archived %}markets-list__row--archived{% endif %}">
+            <td>{{ r.platform }}</td>
+            <td>{{ r.taxonomy_l1 or "general" }}</td>
+            <td>
+              <a href="/market/{{ r.external_id }}">{{ r.title }}</a>
+              {% if r.archived %}
+                <span class="markets-list__archived-pill">archived</span>
+              {% endif %}
+            </td>
+            <td class="num-mute">{{ r.status }}</td>
+            <td>
+              {% if r.last_price is not none %}
+                {% set price_class = 'num-pos' if r.last_price >= 0.5 else 'num-neg' %}
+                <a href="/market/{{ r.external_id }}"><span class="{{ price_class }}"
+                      data-tick-key="markets/{{ r.external_id }}/last"
+                      data-tick-value="{{ "%.3f"|format(r.last_price) }}">{{ "%.3f"|format(r.last_price) }}</span></a>
+              {% else %}-{% endif %}
+            </td>
+            <td class="num-mute">
+              {% if r.volume_24h is not none %}
+                <span data-tick-key="markets/{{ r.external_id }}/vol24h"
+                      data-tick-value="{{ "%.0f"|format(r.volume_24h) }}">{{ "{:,.0f}".format(r.volume_24h) }}</span>
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <nav class="markets-list__pagination">
+      {% set base_qs = "view=" ~ view ~ "&q=" ~ q ~ "&platform=" ~ platform ~ "&category=" ~ category ~ "&status=" ~ status %}
+      {% if page > 1 %}
+        <a href="/markets?{{ base_qs }}&page={{ page - 1 }}">← prev</a>
+      {% else %}
+        <span class="markets-list__pagination-disabled">← prev</span>
+      {% endif %}
+      <span class="markets-list__pagination-pos">page {{ page }} / {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a href="/markets?{{ base_qs }}&page={{ page + 1 }}">next →</a>
+      {% else %}
+        <span class="markets-list__pagination-disabled">next →</span>
+      {% endif %}
+    </nav>
+  {% else %}
+    <div class="markets-list__empty">
+      {% if view == 'archived' %}
+        No archived or closed markets match the current filters.
+      {% else %}
+        No markets match the current filters.
+      {% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

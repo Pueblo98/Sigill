@@ -1,10 +1,18 @@
 # Sigil — Context Handoff for Next Session
 
-**Date written:** 2026-05-01 (post TODO-1 + TODO-9 + TODO-3 — Kalshi
-orderbook archive writer/reader, plus DB backup-restore procedure).
-Branch: `main`. Working dir
-`C:\Users\simon\OneDrive\Desktop\Gamblerr`. Platform: Windows 11, bash shell,
-Python 3.12.
+**Date written:** 2026-05-02 (post live-ingestion + sparkline fix —
+`ODDSPIPE_POLL_SECONDS` 60→300 to match decision 4A + cross_platform
+spreads cache=5m, market-detail sparkline now uses bid/ask mid instead
+of stale `last_traded_price`, real Kalshi/Polymarket markets render
+actual SVG charts instead of falling back to "Price stable" text).
+Earlier same day: markets-sub-tabs (Cross-platform spreads + Archived
+collapsed into the Markets page as in-page tabs per
+sigil-frontend/DESIGN.md "vertical IA" rule); morning slice
+backend-dashboard-feature-parity — standalone `/markets`, `/execution`,
+`/models` (card grid), `/models/{id}` (per-model detail), F2 widgets
+wired into the Health page. Branch: `main`. Working dir
+`C:\Users\simon\OneDrive\Desktop\Gamblerr`. Platform: Windows 11, bash
+shell, Python 3.12.
 
 Paste the METAPROMPT section below into a fresh Claude Code session. Don't
 replay the conversation — read the docs it references.
@@ -19,26 +27,44 @@ replay the conversation — read the docs it references.
 >
 > **What's already landed:** Wave 1 (ingestion, OMS, risk, sizing, decision
 > engine, backtest engine), Wave 2 (settlement WS, Telegram routing,
-> critical-path coverage), Phase 5.0 (server-rendered Python dashboard at `/`
-> with 12 widgets across 4 pages, per-widget TTL cache, 60s background
-> refresh). The Next.js frontend at `sigil-frontend/` is **still running**
-> for parity verification — **don't delete it**, that's Phase 5.2 work and
-> needs operator sign-off.
+> critical-path coverage), Phase 5.0 (server-rendered Python dashboard at
+> `/` with per-widget TTL cache + 60s background refresh), markets explorer
+> v3 (standalone `/markets` route with search/filter/paginate + Market
+> description/archived columns), backend dashboard feature parity
+> (2026-05-02 morning): standalone `/execution` (orders feed), `/models`
+> (card grid mirroring the Next.js mechanic), `/models/{model_id}`
+> (per-model detail with equity curve + recent trades + recent
+> predictions), plus the F2 source health + error log widgets wired into
+> the Health page. **Markets sub-tabs (2026-05-02 evening)**: per the
+> `sigil-frontend/DESIGN.md` "vertical IA" rule, Cross-platform spreads
+> and Archived markets moved into the Markets page as in-page tabs
+> (`/markets?view=spreads`, `/markets?view=archived`). Topbar entry
+> "Cross-platform spreads" removed; `/page/spreads` still renders
+> directly for old bookmarks. The Next.js frontend at `sigil-frontend/`
+> is **still running** for parity verification — **don't delete it**
+> until the operator has used the backend for a few sessions and signs
+> off (TODO-11).
 >
-> **Test bar:** 374/374 passing under `.venv/Scripts/python.exe -m pytest`.
-> Don't let regressions land unnoticed.
+> **Test bar:** 181/181 dashboard tests + 381 across the broader suite
+> (excluding the slow `tests/decision/` and `tests/ingestion/` integration
+> suites) passing under `.venv/Scripts/python.exe -m pytest`. Don't let
+> regressions land unnoticed.
 >
 > **READ FIRST, IN ORDER:**
 >
 > 1. `REVIEW-DECISIONS.md` — 23 architectural decisions. The contract.
 >    Never redesign without explicit user approval.
 > 2. `HANDOFF.md` — this doc.
-> 3. `TODOS.md` — open follow-ups (TODO-10 first-drill operator-gate + 2 deferred decisions; TODO-1, TODO-3, TODO-9 just landed).
+> 3. `TODOS.md` — open follow-ups (TODO-10 first-drill operator-gate,
+>    TODO-11 frontend deletion, TODO-12 analytical-widgets re-wire,
+>    plus 2 deferred decisions; TODO-1, TODO-3, TODO-9 already landed).
 > 4. `RUNBOOK.md` — three smoke flows (in-process, real-uvicorn, live
 >    operator stack) + the `persist_backtest_result` recipe.
 > 5. `git log --oneline -15` for current state.
 > 6. `C:\Users\simon\.claude\plans\polished-crafting-feigenbaum.md` —
 >    Phase 5 plan (5.0 done; 5.1 cutover + 5.2 deletion still pending).
+> 7. `C:\Users\simon\.claude\plans\ok-so-weve-been-bright-forest.md` —
+>    backend dashboard feature-parity plan (2026-05-02), executed.
 >
 > **Auto mode is OFF by default.** Use `AskUserQuestion` for taste calls.
 > Ask before destructive or shared-state actions (force-push, mass deletes,
@@ -63,7 +89,8 @@ replay the conversation — read the docs it references.
 
 ## Current state
 
-**Tests:** 374/374 passing (357 prior + 8 archive writer + 9 archive reader).
+**Tests:** 183 dashboard tests pass; 381 across the broader suite
+(excluding `tests/decision/` + `tests/ingestion/`).
 **Tags:** `wave-1-verified`, `wave-2-complete`, `phase-5-0-complete`.
 
 ```
@@ -96,8 +123,37 @@ d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
   relative-time.js (~30 LOC client JS).
 - **`src/sigil/backtesting/persistence.py`** — `persist_backtest_result()`
   helper writing to the `backtest_results` table.
-- **`dashboard.yaml`** at repo root — operator-editable widget config. 4
-  pages: command-center (default), markets, models, health.
+- **`dashboard.yaml`** at repo root — operator-editable widget config. 3
+  YAML-driven widget pages remain: command-center (default), spreads,
+  health. **The `spreads` page is no longer surfaced in the topbar**
+  (markets-sub-tabs slice, 2026-05-02 evening) — it's only kept so the
+  `cross_platform_spreads` widget continues to instantiate + refresh
+  on the orchestrator's 60s tick. Rendering happens on the Markets
+  page under `?view=spreads`, which looks up the widget instance from
+  `state.widgets` and renders its cached HTML inline. `/page/spreads`
+  still works for old bookmarks. The retired YAML pages — `markets`
+  (markets explorer v3) and `models` (backend dashboard feature
+  parity) — are served by standalone Jinja routes that mount.py
+  registers directly. See `src/sigil/dashboard/views/{markets_list,
+  models_list,model_detail,execution_log}.py` + the matching
+  `templates/*.html`. The four standalone routes (`/markets`,
+  `/execution`, `/models`, `/models/{model_id}`) sit in
+  `mount._register_routes`; the topbar builds via `_nav_pages` which
+  drops YAML pages whose names collide with a standalone route or
+  with an in-page sub-tab (currently `markets`, `models`, `spreads`)
+  and inserts the standalone links at fixed positions.
+- **F2 widgets are now wired into the Health page** (2026-05-02).
+  `source_health_table` + `error_log` joined `system_health_strip` +
+  `recent_activity` so Data Health renders per-source latency/errors +
+  recent error feed instead of just headlines.
+- **F2 model widgets (`model_brier`, `model_calibration`,
+  `model_roi_curve`) stay registered in code but are NOT currently
+  wired into any page.** Per-model performance lives on
+  `/models/{model_id}` instead (equity curve + recent trades + recent
+  predictions, served from `views/model_detail.py` calling
+  `sigil.api.model_performance.model_detail`). If you build a future
+  comparative-analytics page, re-add them to `dashboard.yaml`. Tracked
+  as TODO-12.
 - **`src/sigil/ingestion/orderbook_archive.py`** — TODO-1 writer.
   Per-market per-day JSONL at
   `<ORDERBOOK_ARCHIVE_DIR>/kalshi/<external_id>/<YYYY-MM-DD>.jsonl`.
@@ -118,11 +174,14 @@ d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
 - **`runbooks/backup-restore.md`** — TODO-3 canonical procedure: daily
   backup, quarterly drill checklist, drill log table, age-key reuse
   from decision 1F.
-- **`alembic/versions/`** — two migrations: `0001` (initial) and
-  `7e992ada302b` (add backtest_results table). Don't edit; chain new
-  ones.
-- **`sigil-frontend/`** — Next.js dashboard, still running. Don't touch
-  until 5.2.
+- **`alembic/versions/`** — three migrations: `0001` (initial),
+  `7e992ada302b` (backtest_results), and `a4b1c2d3e4f5` (description +
+  archived columns on markets). Don't edit; chain new ones.
+- **`sigil-frontend/`** — Next.js dashboard, still running on port 3000
+  for parity verification. The Python dashboard at port 8003 now has
+  full feature parity (or better) for every page that ships data from
+  the backend API. Don't touch the frontend until TODO-11
+  (operator-gated deletion).
 
 ---
 
@@ -136,8 +195,22 @@ d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
   paths covered. APScheduler 5-min `BankrollSnapshot` job in `main.py`.
 - **Phase 5.0**: server-rendered Python dashboard at `/`, `/page/{name}`,
   `/dashboard/static/*`. Per-widget TTL cache. Theme injected by loader.
-  4 pages, 12 widgets, all render. Verified via TestClient AND real
-  uvicorn (curl every route, 200/302/404 as expected).
+  3 YAML widget pages (command-center, spreads, health) + 4 standalone
+  routes (`/markets`, `/execution`, `/models`, `/models/{id}`).
+  Verified via TestClient AND real uvicorn (curl every route, 200/302/
+  404 as expected).
+- **Backend dashboard feature parity (2026-05-02)**: `/execution`
+  (filterable orders feed: platform/mode/status filters + 50-per-page
+  pagination, mode chips for paper/live, market title links into
+  `/market/{external_id}`); `/models` (card grid — one card per
+  registered model with display_name + version + status dot
+  (live/idle/disabled) + tags + 4-stat grid + last-trade relative time
+  + 24h prediction count, click-through to detail); `/models/{model_id}`
+  (per-model deep dive — perf stats grid, equity curve via
+  `render_roi_curve_svg`, recent trades + predictions tables); F2
+  widgets `source_health_table` + `error_log` wired into the Health
+  page. Topbar order: Command Center · Markets · Execution ·
+  Cross-platform spreads · Models · Data Health.
 - **TODO-8**: BacktestResult ORM table + alembic migration + persist
   helper. F2's `backtest_results` widget now reads via SQLAlchemy ORM
   with `OperationalError` fallback.
@@ -166,15 +239,22 @@ d2e0f80 phase 5 lane F1: widget framework + 6 read-only widgets
    `runbooks/backup-restore.md` is the doc.
 2. **Phase 5.1 cutover**: DNS / Tailscale routing changes so the Python
    dashboard becomes canonical. Operational; needs operator action.
-3. **Phase 5.2 frontend deletion**: `git rm -r sigil-frontend/`. Only after
-   the operator confirms parity by hitting both UIs side-by-side. Plan is
-   in `polished-crafting-feigenbaum.md`.
+3. **TODO-11 / Phase 5.2 frontend deletion**: `git rm -r sigil-frontend/`.
+   Backend feature parity landed 2026-05-02 — the Python dashboard now
+   has every page the frontend had (and `/markets` + `/execution` go
+   beyond, with server-side filtering + pagination). Operator needs to
+   use the backend for a few sessions before sign-off. Plan in
+   `polished-crafting-feigenbaum.md`.
 
 ### Code work, scope-clear
 
-(Empty — the named code-work items have all landed. Next slice is
-either a polish pass, a fresh feature ask, or moving on to deferred
-decisions.)
+- **TODO-12: Re-wire analytical model widgets.** `model_brier`,
+  `model_calibration`, `model_roi_curve` are registered in
+  `WIDGET_REGISTRY` but no longer referenced by `dashboard.yaml`
+  (the Models page is now a card grid; per-model analytics live on
+  `/models/{id}`). If/when a comparative cross-model analytics page is
+  needed, add a YAML page that references these widgets — they're
+  ready to render. No code change required to the widgets themselves.
 
 ### Polish / nice-to-have
 
@@ -191,6 +271,113 @@ decisions.)
 
 ### Already done since the previous handoff
 
+- **Live ingestion + sparkline fix** (this slice, 2026-05-02 late
+  evening). Two related fixes so the dashboard *visibly moves*:
+  - `ODDSPIPE_POLL_SECONDS` default in `src/sigil/config.py` flipped
+    from `60` back to `300`. Aligns with decision 4A (5-min freshness
+    on the $50/mo tier) and the `cross_platform_spreads` widget
+    `cache=5m` in `dashboard.yaml`. The 60s default had been tripping
+    OddsPipe 429s when the ingestion process restarted; 300s burns
+    ~12 calls/hour, well under quota.
+  - Market-detail sparkline (`src/sigil/dashboard/views/market_detail.py`)
+    now prefers the bid/ask mid over `MarketPrice.last_price` for the
+    7-day series. OddsPipe REST returns a stale `last_traded_price`
+    on low-volume prediction markets even while the bid/ask is moving
+    tick-to-tick — under the old logic those markets degraded into a
+    "Price stable at X" text note. New logic gives real markets like
+    `KXLAYOFFSYINFO-26-494000` an actual SVG chart. Genuinely flat
+    markets still get a (now-correctly-labelled) "Mid stable" note.
+  - Operator visibility: ingestion is a separate `start_ingestion.py`
+    foreground process (NOT started by `python -m sigil.api.server`).
+    See RUNBOOK.md path 3c. Symptom of an outage: `MarketPrice.time`
+    max getting old + cross_platform_spreads widget falling to "no
+    high-confidence spreads" empty state.
+- **Markets sub-tabs** (prior slice, 2026-05-02 evening). Per the
+  `sigil-frontend/DESIGN.md` "vertical IA" rule, two former top-level
+  surfaces collapsed into the Markets page as in-page tabs:
+  - `?view=all` (default) — currently-running markets.
+  - `?view=spreads` — renders the cached `cross_platform_spreads`
+    widget inline. The route looks up the widget instance from
+    `state.widgets` and pulls cached HTML; the widget keeps refreshing
+    via the YAML `spreads` page (which stays in `dashboard.yaml` but
+    is dropped from `_nav_pages`).
+  - `?view=archived` — non-running markets (status≠open OR
+    archived=True). Replaces the old `?archived=1` checkbox; legacy
+    URLs still work because the route handler translates them.
+  - Tab strip at the top of the Markets page (`.markets-list__tabs` /
+    `.markets-list__tab` / `.markets-list__tab--active`) — slim
+    underlined-on-active labels per the DESIGN.md spec.
+  - Topbar lost the "Cross-platform spreads" entry; new order:
+    Command Center · Markets · Execution · Models · Data Health.
+  - `views/markets_list.py::build_context` signature changed:
+    `archived: Optional[str]` was replaced with `view: Optional[str]`
+    (legal values: `all` (default), `archived`, `spreads`). The
+    `MarketsListContext` dataclass replaced `archived: bool` with
+    `view: str`. Tests updated to match.
+- **Backend dashboard feature parity** (prior slice, 2026-05-02 morning).
+  Operator
+  prefers the Python dashboard's dark/monospace look over the Next.js
+  frontend, so the missing pages migrated. Three new standalone routes
+  in `mount.py` + four new view modules + four new templates:
+  - `/execution` (`views/execution_log.py` +
+    `templates/execution_log.html`) — filterable + paginated orders
+    feed. Filters: platform, mode (paper/live), status. Mode chip styled
+    via new `.markets-list__mode-chip` rules in `dashboard.css` (live =
+    red border, paper = muted). Market title links into
+    `/market/{external_id}`.
+  - `/models` (`views/models_list.py` +
+    `templates/models_list.html`) — 3-column card grid, one card per
+    `ModelDef` in `sigil.models_registry`. Calls
+    `sigil.api.model_performance.all_model_summaries` for the metrics.
+    Status dot mechanic: enabled + ≥1 prediction in 24h → "live";
+    enabled + idle → "idle"; disabled → "disabled". Each card is an
+    `<a>` linking to `/models/{model_id}`. Card grid CSS lives in
+    `dashboard.css` under `.models-list*`.
+  - `/models/{model_id}` (`views/model_detail.py` +
+    `templates/model_detail.html`) — per-model deep dive. Reuses
+    `mp.model_detail()` for the data + `render_roi_curve_svg` for the
+    equity SVG. Sections: header (display name + version + status +
+    description + tags), 8-stat performance grid, equity curve, recent
+    trades table (linkable into `/market/{external_id}`), recent
+    predictions table.
+  - F2 widgets `source_health_table` + `error_log` wired into the
+    Health page in `dashboard.yaml`. The model F2 widgets
+    (`model_brier`, `model_calibration`, `model_roi_curve`) stay
+    registered but unwired — see TODO-12.
+  - `_nav_pages` in `mount.py` learned to drop YAML pages named
+    `models` (alongside `markets`) and to insert standalone links for
+    `/markets` (pos 1), `/execution` (pos 2), and `/models` (pos 4).
+    Topbar order: Command Center · Markets · Execution ·
+    Cross-platform spreads · Models · Data Health.
+  - Test coverage: `tests/dashboard/test_execution_log_route.py`
+    (9 tests), `test_model_detail_route.py` (4 tests),
+    `test_models_list_route.py` (6 tests). Updated
+    `test_dashboard_yaml.py` (widget count assertion 8 → 9, page list
+    `[command-center, spreads, health]`) and `test_render.py`
+    (`/page/models` is now 404; nav contains `/execution` + `/models`).
+- **Markets explorer v3** (prior slice). Schema gained
+  `Market.description` + `Market.archived` via migration
+  `a4b1c2d3e4f5_add_market_description_archived`. New standalone
+  `/markets` route (search + platform/category/status filter +
+  archived toggle + 50/page pagination); the old YAML widget-driven
+  `/page/markets` is gone, the topbar entry now points at `/markets`.
+  Ingestion captures description from Polymarket gamma + mirrors
+  `archived`; Kalshi categories now come from a hardcoded ticker-prefix
+  map (`_KALSHI_PREFIX_CATEGORY` in `src/sigil/ingestion/kalshi.py`)
+  until /events/{ticker} auth lands. Detail page renders the
+  description block + an archived badge. Backfill via
+  `scripts/enrich_markets.py` filled 91 polymarket descriptions; all
+  110 kalshi rows now bucket into sports/economics/politics — DB
+  baseline went from 146/258 'general' to 146 (polymarket only,
+  gamma's `category` is unreliable).
+- **Scraper research finding** (logged so the next agent doesn't
+  re-research it): no new dependency needed. Polymarket gamma already
+  exposes `description` + `archived` reliably; Kalshi's per-market
+  fields (rules_primary, real category) are gated behind RSA-PSS
+  auth we don't have. `pykalshi` (ArshKA/pykalshi) and `kalshi-python`
+  both blocked on the same auth gap. `py-clob-client` is order-placement
+  oriented, not a market-data improvement. Selenium/Playwright stays
+  deferred — only consider when an API truly doesn't expose the field.
 - TODO-1 (Kalshi orderbook archive writer) — landed `b91e2ca`.
 - TODO-9 (replay reader → Backtester) — landed `30e919f`.
 - TODO-3 (backup + restore procedure + scripts) — this slice.

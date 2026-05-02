@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Models{% endblock %}
+{% block content %}
+<section class="page models-list">
+  <header class="models-list__header">
+    <h1 class="models-list__title">Models</h1>
+    <div class="models-list__count">
+      {{ total }} registered model{{ "" if total == 1 else "s" }}
+    </div>
+  </header>
+
+  {% if cards %}
+    <div class="models-list__grid">
+      {% for c in cards %}
+        <a class="models-list__card" href="/models/{{ c.model_id }}">
+          <div class="models-list__card-header">
+            <span class="models-list__card-name">{{ c.display_name }}</span>
+            <span class="models-list__card-version">{{ c.version }}</span>
+          </div>
+          <div class="models-list__card-status models-list__card-status--{{ c.status }}">
+            <span class="models-list__status-dot"></span>{{ c.status }}
+          </div>
+          {% if c.description %}
+            <div class="models-list__card-desc">{{ c.description }}</div>
+          {% endif %}
+          {% if c.tags %}
+            <div class="models-list__card-tags">
+              {% for t in c.tags %}
+                <span class="models-list__card-tag">{{ t }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <div class="models-list__card-stats">
+            <div class="models-list__card-stat">
+              <div class="models-list__card-stat-label">Trades</div>
+              <div class="models-list__card-stat-value">
+                <span class="num-mute"
+                      data-tick-key="models/{{ c.model_id }}/trades"
+                      data-tick-value="{{ c.summary.trades_total or 0 }}">{{ c.summary.trades_total or 0 }}</span>
+              </div>
+            </div>
+            <div class="models-list__card-stat">
+              <div class="models-list__card-stat-label">Win rate</div>
+              <div class="models-list__card-stat-value">
+                {% if c.summary.win_rate is not none %}
+                  {% set wr_class = 'num-pos' if c.summary.win_rate >= 0.5 else 'num-neg' %}
+                  <span class="{{ wr_class }}"
+                        data-tick-key="models/{{ c.model_id }}/win_rate"
+                        data-tick-value="{{ "%.4f"|format(c.summary.win_rate) }}">{{ "%.1f%%"|format(c.summary.win_rate * 100) }}</span>
+                {% else %}-{% endif %}
+              </div>
+            </div>
+            <div class="models-list__card-stat">
+              <div class="models-list__card-stat-label">P&amp;L</div>
+              <div class="models-list__card-stat-value">
+                {% set pnl = c.summary.realized_pnl or 0 %}
+                <span class="{{ 'num-pos' if pnl >= 0 else 'num-neg' }}"
+                      data-tick-key="models/{{ c.model_id }}/realized_pnl"
+                      data-tick-value="{{ "%.4f"|format(pnl) }}">{{ "%+.2f"|format(pnl) }}</span>
+              </div>
+            </div>
+            <div class="models-list__card-stat">
+              <div class="models-list__card-stat-label">Drawdown</div>
+              <div class="models-list__card-stat-value">
+                {% if c.summary.max_drawdown is not none %}
+                  <span class="{{ 'num-neg' if c.summary.max_drawdown > 0 else 'num-mute' }}"
+                        data-tick-key="models/{{ c.model_id }}/drawdown"
+                        data-tick-value="{{ "%.4f"|format(c.summary.max_drawdown) }}">{{ "%.2f"|format(c.summary.max_drawdown) }}</span>
+                {% else %}-{% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="models-list__card-footer">
+            {% if c.summary.last_trade_at %}
+              <span data-relative-time="{{ c.summary.last_trade_at }}">{{ c.summary.last_trade_at }}</span>
+            {% else %}
+              <span>no trades yet</span>
+            {% endif %}
+            <span class="models-list__card-footer-sep">·</span>
+            <span>
+              <span class="num-mute"
+                    data-tick-key="models/{{ c.model_id }}/pred24h"
+                    data-tick-value="{{ c.summary.predictions_24h or 0 }}">{{ c.summary.predictions_24h or 0 }}</span>
+              pred / 24h
+            </span>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="models-list__empty">No models are registered.</div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -7,6 +7,9 @@
       <h1 class="market-detail__title">{{ market.title }}</h1>
       <span class="market-detail__platform">{{ market.platform }}</span>
       <span class="market-detail__status status-{{ market.status }}">{{ market.status }}</span>
+      {% if market.archived or market.status != 'open' %}
+        <span class="market-detail__status market-detail__archived">archived</span>
+      {% endif %}
     </div>
     <div class="market-detail__breadcrumb">
       {% if breadcrumb.series %}
@@ -38,6 +41,28 @@
       </div>
     {% endif %}
   </header>
+
+  <section class="market-detail__description">
+    <h2>Description</h2>
+    {% if market.description %}
+      <div class="market-detail__description-body">{{ market.description }}</div>
+    {% else %}
+      <div class="market-detail__description-empty">
+        {% if market.platform == 'kalshi' %}
+          No description available — Kalshi's per-market rules sit behind
+          the auth-gated /events endpoint, which we can't read until
+          Kalshi credentials are configured.
+        {% elif market.platform == 'polymarket' %}
+          No description available — Polymarket's gamma response didn't
+          include one for this market. Re-running the
+          <code>scripts/enrich_markets.py</code> backfill may help if it
+          appears later.
+        {% else %}
+          No description available for this market.
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
 
   <section class="market-detail__price">
     <h2>Price</h2>
@@ -77,8 +102,86 @@
       <div class="market-detail__empty">No price data yet.</div>
     {% endif %}
     <div class="market-detail__sparkline">
-      {{ sparkline_svg|safe }}
+      {% if price_history.svg %}
+        {{ price_history.svg|safe }}
+      {% elif price_history.note %}
+        <div class="market-detail__sparkline-note">{{ price_history.note }}</div>
+      {% endif %}
     </div>
+  </section>
+
+  <section class="market-detail__orderbook">
+    <h2>Order book</h2>
+    <div class="market-detail__stats-grid">
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Best bid</div>
+        <div class="market-detail__stat__value">
+          {{ "%.3f"|format(orderbook.best_bid) if orderbook.best_bid is not none else "-" }}
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Best ask</div>
+        <div class="market-detail__stat__value">
+          {{ "%.3f"|format(orderbook.best_ask) if orderbook.best_ask is not none else "-" }}
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Spread</div>
+        <div class="market-detail__stat__value">
+          {{ "%.3f"|format(orderbook.spread) if orderbook.spread is not none else "-" }}
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Mid</div>
+        <div class="market-detail__stat__value">
+          {{ "%.3f"|format(orderbook.mid) if orderbook.mid is not none else "-" }}
+        </div>
+      </div>
+    </div>
+
+    {% if orderbook.has_full_ladder %}
+      <div class="market-detail__ladder">
+        <div class="market-detail__ladder-col market-detail__ladder-col--bids">
+          <div class="market-detail__ladder-header">Bids</div>
+          <table>
+            <thead><tr><th>Price</th><th>Size</th><th>Cum</th></tr></thead>
+            <tbody>
+              {% for level in orderbook.bids %}
+                <tr>
+                  <td>{{ "%.3f"|format(level.price) }}</td>
+                  <td>{{ "{:,.0f}".format(level.size) }}</td>
+                  <td>{{ "{:,.0f}".format(level.cumulative_size) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="market-detail__ladder-col market-detail__ladder-col--asks">
+          <div class="market-detail__ladder-header">Asks</div>
+          <table>
+            <thead><tr><th>Price</th><th>Size</th><th>Cum</th></tr></thead>
+            <tbody>
+              {% for level in orderbook.asks %}
+                <tr>
+                  <td>{{ "%.3f"|format(level.price) }}</td>
+                  <td>{{ "{:,.0f}".format(level.size) }}</td>
+                  <td>{{ "{:,.0f}".format(level.cumulative_size) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="market-detail__orderbook-source">
+        full depth from <code>{{ orderbook.source or 'unknown' }}</code>
+        — updated {{ orderbook.updated_at }}
+      </div>
+    {% else %}
+      <div class="market-detail__orderbook-source">
+        source: <code>{{ orderbook.source or 'unknown' }}</code>
+      </div>
+    {% endif %}
+    <div class="market-detail__orderbook-note">{{ orderbook.note }}</div>
   </section>
 
   <section class="market-detail__predictions">

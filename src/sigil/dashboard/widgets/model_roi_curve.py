@@ -129,7 +129,9 @@ class ModelRoiCurveWidget(WidgetBase):
             sign_class = "positive" if curve.final_equity >= 0 else "negative"
             sections.append(
                 '<section class="roi-model">'
-                f'<h3 class="roi-model__title">{escape(curve.model_id)}</h3>'
+                f'<h3 class="roi-model__title">'
+                f'<a href="/models/{escape(curve.model_id)}">{escape(curve.model_id)}</a>'
+                "</h3>"
                 '<div class="roi-model__meta">'
                 f'<span class="{sign_class}">'
                 f"{curve.final_equity:+.2f}</span> "

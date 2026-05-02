@@ -23,6 +23,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from sigil.config import config
 from sigil.db import AsyncSessionLocal, get_session, init_db
@@ -31,7 +32,7 @@ from sigil.ingestion.kalshi import KalshiDataSource
 from sigil.ingestion.oddspipe import OddsPipeDataSource
 from sigil.ingestion.orderbook_archive import OrderbookArchive
 from sigil.ingestion.polymarket import PolymarketDataSource
-from sigil.models import Market, MarketPrice, SourceHealth
+from sigil.models import Market, MarketOrderbook, MarketPrice, SourceHealth
 from sigil.signals.elo_sports import generate_elo_predictions
 from sigil.signals.spread_arb import generate_spread_predictions
 
@@ -265,24 +266,119 @@ class StreamProcessor:
                 if time_val is None:
                     time_val = datetime.now(timezone.utc)
 
-                session.add(
-                    MarketPrice(
-                        time=time_val,
-                        market_id=market_id,
-                        source=item.get("source", self.source_name),
-                        bid=item.get("bid"),
-                        ask=item.get("ask"),
-                        last_price=item.get("last_price"),
-                        volume_24h=item.get("volume_24h"),
-                        open_interest=item.get("open_interest"),
-                    )
-                )
+                source_name = item.get("source", self.source_name)
+                # Per-row SAVEPOINT so a cross-batch collision on the
+                # (time, market_id, source) composite PK doesn't poison
+                # the whole flush. In-batch dedup already handles the
+                # within-batch case; cross-batch dupes are rarer (Windows
+                # clock collision on a 1-second OddsPipe poll boundary)
+                # and benign — drop and keep going. Works on both
+                # Postgres and SQLite.
+                try:
+                    async with session.begin_nested():
+                        session.add(
+                            MarketPrice(
+                                time=time_val,
+                                market_id=market_id,
+                                source=source_name,
+                                bid=item.get("bid"),
+                                ask=item.get("ask"),
+                                last_price=item.get("last_price"),
+                                volume_24h=item.get("volume_24h"),
+                                open_interest=item.get("open_interest"),
+                            )
+                        )
+                except IntegrityError:
+                    # Already inserted by a previous flush; fine, skip.
+                    continue
                 inserted += 1
+                # Persist the latest ladder snapshot when the upstream
+                # adapter provides one. OddsPipe ticks set bids/asks=[]
+                # so this is a no-op for REST-polled rows; only direct
+                # exchange WS feeds (Kalshi / Polymarket) populate this.
+                bids = item.get("bids") or []
+                asks = item.get("asks") or []
+                if bids or asks:
+                    await self._upsert_orderbook_snapshot(
+                        session,
+                        market_id=market_id,
+                        source=source_name,
+                        bids=bids,
+                        asks=asks,
+                        updated_at=time_val,
+                    )
         logger.info(
             "[%s] flushed %d ticks (dropped_unknown=%d, cache_size=%d)",
             self.source_name, inserted, self.dropped_unknown_market, self.resolver.cache_size(),
         )
         return inserted
+
+    @staticmethod
+    def _normalize_ladder(rungs: list, max_levels: int = 25) -> list:
+        """Reduce ladder entries to a clean list of ``[price, size]`` pairs.
+
+        Polymarket emits ``[{"price": "0.43", "size": "120"}, ...]``;
+        Kalshi emits ``[[42, 1500], [41, 800], ...]`` (price in cents).
+        Both shapes are normalised to ``[[float_price_in_dollars,
+        float_size], ...]`` and capped at ``max_levels`` so a 1000-deep
+        book doesn't bloat one row.
+        """
+        out: list[list[float]] = []
+        for entry in rungs[:max_levels]:
+            try:
+                if isinstance(entry, dict):
+                    p = float(entry.get("price"))
+                    s = float(entry.get("size", 0) or 0)
+                elif isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                    p_raw, s_raw = entry[0], entry[1]
+                    p = float(p_raw)
+                    s = float(s_raw or 0)
+                    # Kalshi-style integer cents heuristic: prices > 1 are
+                    # almost certainly cents.
+                    if p > 1.0:
+                        p = p / 100.0
+                else:
+                    continue
+            except (TypeError, ValueError):
+                continue
+            out.append([p, s])
+        return out
+
+    async def _upsert_orderbook_snapshot(
+        self,
+        session: Any,
+        *,
+        market_id: UUID,
+        source: str,
+        bids: list,
+        asks: list,
+        updated_at: datetime,
+    ) -> None:
+        """Upsert the latest top-N ladder for this (market, source).
+
+        Falls back to a SELECT-then-update so we don't depend on the
+        Postgres-specific ON CONFLICT helper just for one table.
+        """
+        bids_norm = self._normalize_ladder(bids)
+        asks_norm = self._normalize_ladder(asks)
+        existing = (await session.execute(
+            select(MarketOrderbook).where(
+                MarketOrderbook.market_id == market_id,
+                MarketOrderbook.source == source,
+            )
+        )).scalar_one_or_none()
+        if existing is None:
+            session.add(MarketOrderbook(
+                market_id=market_id,
+                source=source,
+                bids_json=bids_norm,
+                asks_json=asks_norm,
+                updated_at=updated_at,
+            ))
+        else:
+            existing.bids_json = bids_norm
+            existing.asks_json = asks_norm
+            existing.updated_at = updated_at
 
     async def consume_stream(self, source: Any, market_ids: list[str]) -> None:
         # Some sources (OddsPipe) ignore market_ids and discover their own
@@ -305,8 +401,15 @@ async def _upsert_markets(
     platform: str,
     resolver: MarketIdResolver,
 ) -> list[str]:
-    """Insert any missing Markets and prime the id resolver. Returns the
-    external_ids in input order."""
+    """Insert missing Markets, opportunistically fill description/archived
+    on existing rows, and prime the id resolver. Returns external_ids in
+    input order.
+
+    Existing markets get their description filled when it's currently NULL
+    and the adapter has provided one (Polymarket gamma supplies it; Kalshi
+    can't until auth lands). The archived flag is mirrored from the source
+    on every cycle so Polymarket flips on /off automatically.
+    """
     out: list[str] = []
     async with get_session() as session:
         for m in rows:
@@ -320,6 +423,8 @@ async def _upsert_markets(
                 )
             )
             market = existing.scalars().first()
+            description = m.get("description")
+            archived = m.get("archived")
             if market is None:
                 market = Market(
                     platform=platform,
@@ -328,9 +433,25 @@ async def _upsert_markets(
                     taxonomy_l1=m.get("taxonomy_l1", "general"),
                     market_type="binary",
                     status="open",
+                    description=description,
+                    archived=bool(archived) if archived is not None else False,
                 )
                 session.add(market)
                 await session.flush()
+            else:
+                # Backfill description on existing markets when adapter has
+                # one and we don't yet — keeps the column populated as
+                # adapters mature without stomping operator-edited text.
+                if description and not market.description:
+                    market.description = description
+                # Mirror archived flag every cycle (source of truth).
+                if archived is not None:
+                    market.archived = bool(archived)
+                # Promote a real category over the 'general' default when
+                # the adapter provides one.
+                tax = m.get("taxonomy_l1")
+                if tax and tax != "general" and (market.taxonomy_l1 or "general") == "general":
+                    market.taxonomy_l1 = tax
             resolver.prime([(platform, ext_id, market.id)])
     return out
 
@@ -480,6 +601,7 @@ async def run_ingestion() -> None:
             api_key=config.ODDSPIPE_API_KEY,
             base_url=config.ODDSPIPE_BASE_URL,
             markets_per_platform=config.ODDSPIPE_MARKETS_PER_PLATFORM,
+            poll_seconds=config.ODDSPIPE_POLL_SECONDS,
         )
         odds_seeded = await _seed_oddspipe(odds_source, resolver)
         await health.record(

@@ -92,7 +92,11 @@ class OddsPipeAuthError(RuntimeError):
 
 class OddsPipeDataSource(DataSource):
     name: str = "oddspipe"
-    refresh_interval: int = 300  # decision 4A — 5-min freshness
+    # Class default kept for tests that don't go through config; runtime
+    # callers should pass ``poll_seconds`` (or stream_prices' ``poll_interval``)
+    # so the operator override in ``config.ODDSPIPE_POLL_SECONDS`` actually
+    # takes effect.
+    refresh_interval: int = 300
 
     def __init__(
         self,
@@ -101,11 +105,14 @@ class OddsPipeDataSource(DataSource):
         base_url: str = _DEFAULT_BASE_URL,
         platforms: Iterable[str] = ("kalshi", "polymarket"),
         markets_per_platform: int = 100,
+        poll_seconds: Optional[int] = None,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.platforms = tuple(platforms)
         self.markets_per_platform = int(markets_per_platform)
+        if poll_seconds is not None:
+            self.refresh_interval = int(poll_seconds)
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=30.0,
@@ -303,6 +310,11 @@ class OddsPipeDataSource(DataSource):
                 continue
             status_raw = (it.get("status") or "").lower()
             status = "open" if status_raw == "active" else (status_raw or "unknown")
+            description = it.get("description")
+            if isinstance(description, str):
+                description = description.strip() or None
+            else:
+                description = None
             rows.append({
                 "external_id": ext_id,
                 "platform": platform,
@@ -311,6 +323,7 @@ class OddsPipeDataSource(DataSource):
                 "market_type": "binary",
                 "status": status,
                 "resolution_date": None,  # not exposed by /v1/markets
+                "description": description,
             })
         return pd.DataFrame(rows)
 
@@ -319,7 +332,19 @@ class OddsPipeDataSource(DataSource):
         return required.issubset(df.columns) and not df.empty
 
     @staticmethod
-    def _emit_tick(item: dict) -> Optional[dict]:
+    def _emit_tick(
+        item: dict, *, cycle_time: Optional[pd.Timestamp] = None
+    ) -> Optional[dict]:
+        """Build one MarketPrice row from a /v1/markets item.
+
+        ``cycle_time`` is the timestamp shared across the whole poll
+        cycle. Passing it makes ticks within one cycle deterministic
+        and lets us avoid the case where two adjacent ``pd.Timestamp.now()``
+        calls on Windows return the same microsecond and collide on
+        ``MarketPrice``'s composite PK across overlapping flushes.
+        Falls back to ``pd.Timestamp.now()`` when the caller doesn't
+        pass one (used by tests).
+        """
         src = item.get("source") or {}
         ext_id = src.get("platform_market_id")
         platform = src.get("platform")
@@ -344,7 +369,7 @@ class OddsPipeDataSource(DataSource):
             "bid": yes_f,
             "ask": yes_f,
             "last_price": yes_f,
-            "time": pd.Timestamp.now("UTC"),
+            "time": cycle_time if cycle_time is not None else pd.Timestamp.now("UTC"),
             "volume_24h": vol_f,
             "open_interest": None,
             "source": "oddspipe",
@@ -375,8 +400,9 @@ class OddsPipeDataSource(DataSource):
             except Exception as exc:
                 logger.warning("OddsPipe fetch error: %s", exc)
                 raw = []
+            cycle_time = pd.Timestamp.now("UTC")
             for item in raw:
-                tick = self._emit_tick(item)
+                tick = self._emit_tick(item, cycle_time=cycle_time)
                 if tick is not None:
                     yield tick
             await asyncio.sleep(period)

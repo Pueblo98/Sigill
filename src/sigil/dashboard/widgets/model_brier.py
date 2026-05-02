@@ -136,7 +136,7 @@ class ModelBrierWidget(WidgetBase):
         rows_html = "".join(
             (
                 "<tr>"
-                f"<td>{escape(r.model_id)}</td>"
+                f'<td><a href="/models/{escape(r.model_id)}">{escape(r.model_id)}</a></td>'
                 f"<td>{r.n_30d}</td>"
                 f"<td>{_fmt(r.brier_30d, r.n_30d)}</td>"
                 f"<td>{r.n_90d}</td>"

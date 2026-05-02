@@ -6,12 +6,8 @@
 # below are per-widget hints; see src/sigil/dashboard/cache.py for the
 # parser (NNs/m/h/d or the named aliases hourly/daily).
 #
-# NOTE: Phase 5 lane F3 ships with only F1 widgets wired in. Lane F2
-# widgets (model_brier / model_calibration / model_roi_curve /
-# source_health_table / error_log / backtest_results) exist as code but
-# are intentionally not referenced here until F2 lands. The four-page
-# layout below intentionally uses the F1 widgets that already cover each
-# section's intent — it parses, instantiates, and renders today.
+# backtest_results lives in widgets/ but is not wired into any page yet —
+# add it here once a backtest harness produces persistent runs.
 
 pages:
   - name: command-center
@@ -34,16 +30,10 @@ pages:
             cache: 30s
             limit: 20
 
-  - name: markets
-    title: Market Explorer
-    columns:
-      - size: full
-        widgets:
-          - type: market_list
-            cache: 1m
-            limit: 100
-            # sort defaults to volume_desc; click any market title to
-            # drill into its detail page.
+  # The old `markets` page is superseded by the standalone /markets
+  # route (sigil.dashboard.views.markets_list), which supports search,
+  # multi-filter, archive toggle, and pagination across all rows. The
+  # mount layer hides any YAML page named `markets` from the topbar.
 
   - name: spreads
     title: Cross-platform spreads
@@ -56,26 +46,26 @@ pages:
             min_score: 95
             max_yes_diff: 0.30
 
-  - name: models
-    title: Model Performance
-    # F2 widgets (model_brier, model_calibration, model_roi_curve) will move
-    # in once the F2 lane lands. open_positions stands in so the page is
-    # populated rather than empty.
-    columns:
-      - size: full
-        widgets:
-          - type: open_positions
-            cache: 1m
+  # The old `models` page is superseded by the standalone /models route
+  # (sigil.dashboard.views.models_list), which renders a card grid one
+  # per registered model and links into /models/{id} for the per-model
+  # detail view (equity curve, recent trades, recent predictions). The
+  # mount layer hides any YAML page named `models` from the topbar.
+  # The model_roi_curve / model_calibration / model_brier widgets are
+  # still registered in code if a future page wants to wire them.
 
   - name: health
     title: Data Health
-    # source_health_table + error_log live in F2; system_health_strip from
-    # F1 already covers the headline status.
     columns:
       - size: full
         widgets:
           - type: system_health_strip
             cache: 30s
+          - type: source_health_table
+            cache: 1m
+          - type: error_log
+            cache: 1m
+            limit: 50
           - type: recent_activity
             cache: 1m
             limit: 50

@@ -28,6 +28,7 @@ from sigil.dashboard.config import Theme
 from sigil.dashboard.widgets.charts import render_price_sparkline_svg
 from sigil.models import (
     Market,
+    MarketOrderbook,
     MarketPrice,
     Order,
     Position,
@@ -89,11 +90,58 @@ class _SimilarMarket:
 
 
 @dataclass(frozen=True)
+class _PriceHistorySummary:
+    """Summary of the 7-day price history.
+
+    Either ``svg`` is a real sparkline (≥ 2 distinct values) or ``note``
+    explains why we fell back to text — flat history, single-tick, or
+    no history at all. The template renders one or the other.
+    """
+    svg: str            # may be empty when note is set
+    note: Optional[str] # human label when sparkline is uninformative
+    n_ticks: int
+    distinct_values: int
+    stable_value: Optional[float]
+
+
+@dataclass(frozen=True)
+class _OrderbookLevel:
+    price: float
+    size: float
+    cumulative_size: float
+
+
+@dataclass(frozen=True)
+class _OrderbookView:
+    """Order book snapshot rendered on the detail page.
+
+    When ``MarketOrderbook`` has a row for this market (populated by
+    direct WS feeds — Kalshi or Polymarket), ``bids`` / ``asks`` carry
+    full ladder rungs with cumulative size; ``has_full_ladder`` is
+    true. Otherwise we fall back to the top-of-book scalars from
+    ``MarketPrice`` and the template shows an explainer.
+    """
+    best_bid: Optional[float]
+    best_ask: Optional[float]
+    last_trade: Optional[float]
+    spread: Optional[float]
+    mid: Optional[float]
+    source: Optional[str]
+    has_full_ladder: bool
+    note: str
+    bids: List[_OrderbookLevel]
+    asks: List[_OrderbookLevel]
+    updated_at: Optional[datetime]
+
+
+@dataclass(frozen=True)
 class MarketDetailContext:
     market: Market
     breadcrumb: _Breadcrumb
     latest_price: Optional[MarketPrice]
     sparkline_svg: str
+    price_history: _PriceHistorySummary
+    orderbook: _OrderbookView
     latest_prediction: Optional[_PredictionView]
     predictions: List[_PredictionView]
     lifecycle: List[_LifecycleEntry]
@@ -149,6 +197,13 @@ async def build_context(
     )).scalar_one_or_none()
 
     # 7-day sparkline data: subsample to ~120 points to keep the SVG tiny.
+    #
+    # Source preference: bid/ask mid > last_price. For low-volume
+    # prediction markets, OddsPipe REST returns the same `last_traded_price`
+    # for hours or days at a time even though the bid/ask is shifting
+    # tick-to-tick. Picking mid over last gives us a sparkline that
+    # actually moves; we fall back to last_price only when neither bid
+    # nor ask is on the row.
     cutoff = datetime.now(timezone.utc) - timedelta(days=_SPARKLINE_DAYS)
     history_rows = (await session.execute(
         select(MarketPrice.last_price, MarketPrice.bid, MarketPrice.ask)
@@ -159,15 +214,46 @@ async def build_context(
     series: List[float] = []
     for row in history_rows:
         last_p, bid, ask = row
-        v = last_p if last_p is not None else (
-            ((float(bid) + float(ask)) / 2.0) if (bid is not None and ask is not None) else None
+        if bid is not None and ask is not None:
+            v = (float(bid) + float(ask)) / 2.0
+        elif last_p is not None:
+            v = float(last_p)
+        else:
+            continue
+        series.append(v)
+    n_ticks = len(series)
+    distinct_values = len(set(series))
+    stable_value: Optional[float] = None
+    note: Optional[str] = None
+    if n_ticks == 0:
+        note = "No recent ticks — this market hasn't been seen by any feed in the last 7d."
+        sparkline_svg = ""
+    elif distinct_values <= 1:
+        # Genuinely flat — even mid hasn't budged in 7d. A flat
+        # sparkline would just look broken; show a text indicator
+        # instead.
+        stable_value = series[0]
+        note = (
+            f"Mid stable at {stable_value:.3f} over the last 7d "
+            f"({n_ticks} tick{'s' if n_ticks != 1 else ''} recorded — "
+            "very low-volume market or single-tick feed)."
         )
-        if v is not None:
-            series.append(float(v))
-    if len(series) > 120:
-        step = max(1, len(series) // 120)
-        series = series[::step]
-    sparkline_svg = render_price_sparkline_svg(series, theme=theme)
+        sparkline_svg = ""
+    else:
+        if len(series) > 120:
+            step = max(1, len(series) // 120)
+            series = series[::step]
+        sparkline_svg = render_price_sparkline_svg(series, theme=theme)
+
+    price_history = _PriceHistorySummary(
+        svg=sparkline_svg,
+        note=note,
+        n_ticks=n_ticks,
+        distinct_values=distinct_values,
+        stable_value=stable_value,
+    )
+
+    orderbook = await _build_orderbook_view(session, market.id, latest_price)
 
     predictions = await _load_predictions(session, market.id)
     lifecycle = await _load_lifecycle(session, market.id)
@@ -180,12 +266,124 @@ async def build_context(
         breadcrumb=_parse_breadcrumb(market),
         latest_price=latest_price,
         sparkline_svg=sparkline_svg,
+        price_history=price_history,
+        orderbook=orderbook,
         latest_prediction=latest_prediction,
         predictions=predictions,
         lifecycle=lifecycle,
         siblings_event=siblings_event,
         siblings_taxonomy=siblings_taxonomy,
     )
+
+
+async def _build_orderbook_view(
+    session: AsyncSession,
+    market_id: UUID,
+    price: Optional[MarketPrice],
+) -> _OrderbookView:
+    """Compose the order-book block for the detail page.
+
+    Tries to read a full-ladder snapshot from ``MarketOrderbook`` first;
+    falls back to the top-of-book scalars in the latest ``MarketPrice``.
+    The two sources can both exist (a market with both an OddsPipe REST
+    tick AND a direct WS subscription) — we prefer whichever was
+    updated more recently for the freshest feel.
+    """
+    snapshot = (await session.execute(
+        select(MarketOrderbook)
+        .where(MarketOrderbook.market_id == market_id)
+        .order_by(desc(MarketOrderbook.updated_at))
+        .limit(1)
+    )).scalar_one_or_none()
+
+    bid = float(price.bid) if price and price.bid is not None else None
+    ask = float(price.ask) if price and price.ask is not None else None
+    last = float(price.last_price) if price and price.last_price is not None else None
+
+    if snapshot is not None:
+        bids = _ladder_with_cumulative(snapshot.bids_json, descending=True)
+        asks = _ladder_with_cumulative(snapshot.asks_json, descending=False)
+        if bids:
+            bid = bids[0].price
+        if asks:
+            ask = asks[0].price
+        spread = (ask - bid) if (bid is not None and ask is not None) else None
+        mid = ((bid + ask) / 2.0) if (bid is not None and ask is not None) else None
+        return _OrderbookView(
+            best_bid=bid, best_ask=ask, last_trade=last,
+            spread=spread, mid=mid,
+            source=snapshot.source,
+            has_full_ladder=True,
+            note="Full-depth ladder from the live exchange WS feed.",
+            bids=bids, asks=asks,
+            updated_at=snapshot.updated_at,
+        )
+
+    if price is None:
+        return _OrderbookView(
+            best_bid=None, best_ask=None, last_trade=None,
+            spread=None, mid=None, source=None,
+            has_full_ladder=False,
+            note="No price data has arrived for this market yet.",
+            bids=[], asks=[], updated_at=None,
+        )
+
+    spread = (ask - bid) if (bid is not None and ask is not None) else None
+    mid = ((bid + ask) / 2.0) if (bid is not None and ask is not None) else None
+    if (price.source or "") == "oddspipe":
+        note = (
+            "Top-of-book only — this market is currently fed via the "
+            "OddsPipe REST aggregator, which doesn't expose full ladder "
+            "depth. Enable DIRECT_EXCHANGE_WS_ENABLED (and Kalshi auth) "
+            "to capture full depth."
+        )
+    elif (price.source or "") == "exchange_ws":
+        note = (
+            "Top-of-book shown here is from the live exchange WS feed. "
+            "A full-ladder snapshot will appear here on the next tick "
+            "that carries depth (the runner upserts MarketOrderbook from "
+            "any tick with bids/asks)."
+        )
+    else:
+        note = "Top-of-book only. Full ladder depth not currently persisted."
+    return _OrderbookView(
+        best_bid=bid, best_ask=ask, last_trade=last,
+        spread=spread, mid=mid,
+        source=price.source,
+        has_full_ladder=False,
+        note=note,
+        bids=[], asks=[],
+        updated_at=price.time if price else None,
+    )
+
+
+def _ladder_with_cumulative(
+    rungs: Optional[list],
+    *,
+    descending: bool,
+) -> List[_OrderbookLevel]:
+    """Take a JSON ladder list and return ordered :class:`_OrderbookLevel`
+    rungs with running totals. Bids descend from best (highest price);
+    asks ascend from best (lowest price).
+    """
+    out: List[_OrderbookLevel] = []
+    if not rungs:
+        return out
+    parsed: List[tuple[float, float]] = []
+    for r in rungs:
+        if isinstance(r, (list, tuple)) and len(r) >= 2:
+            try:
+                parsed.append((float(r[0]), float(r[1] or 0)))
+            except (TypeError, ValueError):
+                continue
+    parsed.sort(key=lambda pair: pair[0], reverse=descending)
+    cumulative = 0.0
+    for price, size in parsed[:25]:
+        cumulative += size
+        out.append(_OrderbookLevel(
+            price=price, size=size, cumulative_size=cumulative,
+        ))
+    return out
 
 
 async def _load_predictions(

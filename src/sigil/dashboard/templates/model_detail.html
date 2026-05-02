@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}{{ display_name }}{% endblock %}
+{% block content %}
+<section class="page market-detail">
+  <header class="market-detail__header">
+    <div class="market-detail__title-row">
+      <h1 class="market-detail__title">{{ display_name }}</h1>
+      <span class="market-detail__platform">{{ version }}</span>
+      <span class="market-detail__status status-{{ 'open' if enabled else 'closed' }}">
+        {{ 'live' if enabled else 'disabled' }}
+      </span>
+      {% if summary.state == 'no_data' %}
+        <span class="market-detail__status market-detail__archived">no data</span>
+      {% endif %}
+    </div>
+    <div class="market-detail__breadcrumb">
+      <code class="market-detail__crumb-ticker">{{ model_id }}</code>
+    </div>
+    {% if description %}
+      <div class="market-detail__meta">
+        <span>{{ description }}</span>
+      </div>
+    {% endif %}
+    {% if tags %}
+      <div class="market-detail__chips">
+        {% for tag in tags %}
+          <span class="chip">{{ tag }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </header>
+
+  <section class="market-detail__price">
+    <h2>Performance</h2>
+    <div class="market-detail__stats-grid">
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Trades</div>
+        <div class="market-detail__stat__value">
+          <span class="num-mute"
+                data-tick-key="model_detail/{{ model_id }}/trades"
+                data-tick-value="{{ summary.trades_total or 0 }}">{{ summary.trades_total or 0 }}</span>
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Win rate</div>
+        <div class="market-detail__stat__value">
+          {% if summary.win_rate is not none %}
+            {% set wr_class = 'num-pos' if summary.win_rate >= 0.5 else 'num-neg' %}
+            <span class="{{ wr_class }}"
+                  data-tick-key="model_detail/{{ model_id }}/win_rate"
+                  data-tick-value="{{ "%.4f"|format(summary.win_rate) }}">{{ "%.1f%%"|format(summary.win_rate * 100) }}</span>
+          {% else %}-{% endif %}
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Realized P&amp;L</div>
+        <div class="market-detail__stat__value">
+          {% set rpnl = summary.realized_pnl or 0 %}
+          <span class="{{ 'num-pos' if rpnl >= 0 else 'num-neg' }}"
+                data-tick-key="model_detail/{{ model_id }}/realized_pnl"
+                data-tick-value="{{ "%.4f"|format(rpnl) }}">{{ "%+.2f"|format(rpnl) }}</span>
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Unrealized P&amp;L</div>
+        <div class="market-detail__stat__value">
+          {% set upnl = summary.unrealized_pnl or 0 %}
+          <span class="{{ 'num-pos' if upnl >= 0 else 'num-neg' }}"
+                data-tick-key="model_detail/{{ model_id }}/unrealized_pnl"
+                data-tick-value="{{ "%.4f"|format(upnl) }}">{{ "%+.2f"|format(upnl) }}</span>
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Max drawdown</div>
+        <div class="market-detail__stat__value">
+          {% if summary.max_drawdown is not none %}
+            <span class="{{ 'num-neg' if summary.max_drawdown > 0 else 'num-mute' }}"
+                  data-tick-key="model_detail/{{ model_id }}/drawdown"
+                  data-tick-value="{{ "%.4f"|format(summary.max_drawdown) }}">{{ "%.2f"|format(summary.max_drawdown) }}</span>
+          {% else %}-{% endif %}
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Open positions</div>
+        <div class="market-detail__stat__value">
+          <span class="num-mute"
+                data-tick-key="model_detail/{{ model_id }}/open_pos"
+                data-tick-value="{{ summary.open_positions or 0 }}">{{ summary.open_positions or 0 }}</span>
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Predictions (24h)</div>
+        <div class="market-detail__stat__value">
+          <span class="num-warn"
+                data-tick-key="model_detail/{{ model_id }}/pred24h"
+                data-tick-value="{{ summary.predictions_24h or 0 }}">{{ summary.predictions_24h or 0 }}</span>
+        </div>
+      </div>
+      <div class="market-detail__stat">
+        <div class="market-detail__stat__label">Last trade</div>
+        <div class="market-detail__stat__value"
+             {% if summary.last_trade_at %}data-relative-time="{{ summary.last_trade_at }}"{% endif %}>
+          {{ summary.last_trade_at or "-" }}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="market-detail__price">
+    <h2>Equity curve</h2>
+    <div class="market-detail__sparkline">
+      {% if equity_curve_points > 0 %}
+        {{ equity_curve_svg|safe }}
+      {% else %}
+        <div class="market-detail__sparkline-note">
+          No closed positions yet — the equity curve appears once at least one
+          trade attributed to this model has settled.
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="market-detail__lifecycle">
+    <h2>Recent trades</h2>
+    {% if recent_trades %}
+      <table class="market-detail__table">
+        <thead><tr>
+          <th>When</th><th>Market</th><th>Platform</th><th>Mode</th>
+          <th>Side</th><th>Outcome</th><th>Qty</th><th>Price</th>
+          <th>Status</th>
+        </tr></thead>
+        <tbody>
+          {% for t in recent_trades %}
+            <tr class="lifecycle-order">
+              <td {% if t.created_at %}data-relative-time="{{ t.created_at }}"{% endif %}>
+                {{ t.created_at or "-" }}
+              </td>
+              <td>
+                {% if t.external_id %}
+                  <a href="/market/{{ t.external_id }}">{{ t.market_title }}</a>
+                {% else %}
+                  {{ t.market_title }}
+                {% endif %}
+              </td>
+              <td>{{ t.platform }}</td>
+              <td>{{ t.mode }}</td>
+              <td>{{ t.side or "-" }}</td>
+              <td>{{ t.outcome or "-" }}</td>
+              <td>{{ t.filled_quantity or t.quantity }}</td>
+              <td>
+                {{ "%.3f"|format(t.avg_fill_price) if t.avg_fill_price is not none
+                   else "%.3f"|format(t.price) }}
+              </td>
+              <td>{{ t.status }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="market-detail__empty">No trades from this model yet.</div>
+    {% endif %}
+  </section>
+
+  <section class="market-detail__predictions">
+    <h2>Recent predictions</h2>
+    {% if recent_predictions %}
+      <table class="market-detail__table">
+        <thead><tr>
+          <th>When</th><th>Market</th><th>Predicted</th><th>Market price</th>
+          <th>Edge</th><th>Confidence</th><th>Order</th>
+        </tr></thead>
+        <tbody>
+          {% for p in recent_predictions %}
+            <tr>
+              <td {% if p.created_at %}data-relative-time="{{ p.created_at }}"{% endif %}>
+                {{ p.created_at or "-" }}
+              </td>
+              <td>
+                {% if p.external_id %}
+                  <a href="/market/{{ p.external_id }}">{{ p.market_title }}</a>
+                {% else %}
+                  {{ p.market_title }}
+                {% endif %}
+              </td>
+              <td>{{ "%.3f"|format(p.predicted_prob) if p.predicted_prob is not none else "-" }}</td>
+              <td>
+                {{ "%.3f"|format(p.market_price_at_prediction)
+                   if p.market_price_at_prediction is not none else "-" }}
+              </td>
+              <td class="edge-{{ 'pos' if (p.edge or 0) >= 0 else 'neg' }}">
+                {{ "%+.3f"|format(p.edge) if p.edge is not none else "-" }}
+              </td>
+              <td>{{ "%.2f"|format(p.confidence) if p.confidence is not none else "-" }}</td>
+              <td>
+                {% if p.order_status %}
+                  <span class="chip">{{ p.order_status }}</span>
+                {% else %}
+                  <span class="market-detail__chip-empty">no order</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="market-detail__empty">No predictions from this model yet.</div>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

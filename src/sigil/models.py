@@ -2,10 +2,11 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID, uuid4
 from sqlalchemy import (
-    Integer, String, Numeric, DateTime, JSON, ForeignKey,
-    Index, UniqueConstraint, func, CheckConstraint
+    Boolean, Integer, String, Numeric, DateTime, JSON, ForeignKey,
+    Index, Text, UniqueConstraint, func, CheckConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import false as sa_false
 from sigil.db import Base
 
 
@@ -24,6 +25,8 @@ class Market(Base):
     resolution_source: Mapped[Optional[str]] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="open")
     settlement_value: Mapped[Optional[float]] = mapped_column(Numeric)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa_false())
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -32,6 +35,7 @@ class Market(Base):
         UniqueConstraint("platform", "external_id"),
         Index("idx_markets_taxonomy", "taxonomy_l1", "taxonomy_l2", "status"),
         Index("idx_markets_platform", "platform", "status"),
+        Index("idx_markets_archived", "archived"),
     )
 
 
@@ -46,6 +50,38 @@ class MarketPrice(Base):
     volume_24h: Mapped[Optional[float]] = mapped_column(Numeric)
     open_interest: Mapped[Optional[float]] = mapped_column(Numeric)
     source: Mapped[str] = mapped_column(String, primary_key=True)
+
+
+class MarketOrderbook(Base):
+    """Latest top-N orderbook snapshot per (market, source).
+
+    One row per (market_id, source). Updated every time an upstream WS
+    adapter yields a tick that carries ``bids`` and ``asks`` lists. The
+    market-detail page renders depth from this table when it has data;
+    when empty (e.g. OddsPipe REST polling — no ladder), the page falls
+    back to the top-of-book scalars in MarketPrice and shows an
+    explainer.
+
+    Stored as JSON arrays so we don't have to model each ladder level.
+    Each entry is ``[price: float, size: float]`` — matches what the
+    Polymarket gamma WS and Kalshi WS adapters yield. Truncate to the
+    top 25 levels at write time (writer's responsibility) to keep row
+    size bounded.
+    """
+
+    __tablename__ = "market_orderbooks"
+
+    market_id: Mapped[UUID] = mapped_column(ForeignKey("markets.id"), primary_key=True)
+    source: Mapped[str] = mapped_column(String, primary_key=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    bids_json: Mapped[list] = mapped_column(JSON, default=list)
+    asks_json: Mapped[list] = mapped_column(JSON, default=list)
+
+    __table_args__ = (
+        Index("idx_market_orderbooks_updated", "updated_at"),
+    )
 
 
 class Prediction(Base):

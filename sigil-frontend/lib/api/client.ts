@@ -11,7 +11,7 @@ export function getApiBase(): string {
   if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  return "http://localhost:8000";
+  return "http://localhost:8003";
 }
 
 export function buildUrl(endpoint: string): string {

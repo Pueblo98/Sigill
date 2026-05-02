@@ -32,7 +32,14 @@ class CrossPlatformSpreadsConfig(WidgetConfig):
 
 @dataclass(frozen=True)
 class SpreadRow:
-    """One row in the rendered table — a matched pair across platforms."""
+    """One row in the rendered table — a matched pair across platforms.
+
+    Both ``*_url`` fields are kept for back-compat (older callers /
+    tests reference them); they're no longer used by ``render()``,
+    which emits internal ``/market/{external_id}`` links so the
+    operator stays inside the dashboard instead of bouncing out to
+    the exchange site.
+    """
     question: str               # one platform's title (typically the longer)
     score: float
     yes_diff: float
@@ -43,6 +50,8 @@ class SpreadRow:
     polymarket_yes: Optional[float]
     polymarket_vol: float
     polymarket_url: str
+    kalshi_external_id: Optional[str] = None
+    polymarket_external_id: Optional[str] = None
 
 
 @register_widget("cross_platform_spreads")
@@ -102,6 +111,8 @@ class CrossPlatformSpreadsWidget(WidgetBase):
                 polymarket_yes=poly.yes_price,
                 polymarket_vol=poly.volume_usd,
                 polymarket_url="https://polymarket.com",
+                kalshi_external_id=kalshi.external_id,
+                polymarket_external_id=poly.external_id,
             ))
 
         rows.sort(key=lambda r: abs(r.yes_diff), reverse=True)
@@ -114,21 +125,68 @@ class CrossPlatformSpreadsWidget(WidgetBase):
             )
 
         rows_html_parts = []
-        for r in data:
-            ky = "-" if r.kalshi_yes is None else f"{r.kalshi_yes:.3f}"
-            py = "-" if r.polymarket_yes is None else f"{r.polymarket_yes:.3f}"
+        for idx, r in enumerate(data):
+            # Stable per-row key for tick-pulse — derived from the kalshi
+            # ticker (or the row index when kalshi has no external_id) so
+            # the same arb pair pulses if its prices move between
+            # refreshes.
+            row_key = r.kalshi_external_id or r.polymarket_external_id or f"row{idx}"
+            ky_class = "num-pos" if (r.kalshi_yes or 0) >= 0.5 else "num-neg"
+            py_class = "num-pos" if (r.polymarket_yes or 0) >= 0.5 else "num-neg"
+            diff_class = "num-pos" if r.yes_diff >= 0 else "num-neg"
+            ky = (
+                f'<span class="{ky_class}" '
+                f'data-tick-key="spreads/{escape(row_key)}/kyes" '
+                f'data-tick-value="{r.kalshi_yes:.3f}">{r.kalshi_yes:.3f}</span>'
+                if r.kalshi_yes is not None else "-"
+            )
+            py_ = (
+                f'<span class="{py_class}" '
+                f'data-tick-key="spreads/{escape(row_key)}/pyes" '
+                f'data-tick-value="{r.polymarket_yes:.3f}">{r.polymarket_yes:.3f}</span>'
+                if r.polymarket_yes is not None else "-"
+            )
             kvol = f"${r.kalshi_vol:,.0f}"
             pvol = f"${r.polymarket_vol:,.0f}"
             direction_arrow = "↑K" if r.direction == "kalshi_higher" else "↑P"
+            diff_html = (
+                f'<span class="{diff_class}" '
+                f'data-tick-key="spreads/{escape(row_key)}/diff" '
+                f'data-tick-value="{r.yes_diff:.4f}">'
+                f"{r.yes_diff:+.3f} {direction_arrow}</span>"
+            )
+
+            # Internal links — clicks land on /market/{external_id} so the
+            # operator stays inside the dashboard. Prefer the Kalshi side
+            # for the Question column (richer per-market data on that
+            # platform); fall back to Polymarket if there's no Kalshi id.
+            primary_eid = r.kalshi_external_id or r.polymarket_external_id
+            question_text = escape(r.question[:80])
+            if primary_eid:
+                question_html = (
+                    f'<a href="/market/{escape(primary_eid)}">{question_text}</a>'
+                )
+            else:
+                question_html = question_text
+
+            ky_cell = (
+                f'<a href="/market/{escape(r.kalshi_external_id)}">{ky}</a>'
+                if r.kalshi_external_id and r.kalshi_yes is not None else ky
+            )
+            py_cell = (
+                f'<a href="/market/{escape(r.polymarket_external_id)}">{py_}</a>'
+                if r.polymarket_external_id and r.polymarket_yes is not None else py_
+            )
+
             rows_html_parts.append(
                 "<tr>"
-                f"<td>{escape(r.question[:80])}</td>"
-                f'<td><a href="{escape(r.kalshi_url)}" target="_blank">{ky}</a></td>'
-                f"<td>{kvol}</td>"
-                f'<td><a href="{escape(r.polymarket_url)}" target="_blank">{py}</a></td>'
-                f"<td>{pvol}</td>"
-                f"<td>{r.yes_diff:+.3f} {direction_arrow}</td>"
-                f"<td>{r.score:.0f}</td>"
+                f"<td>{question_html}</td>"
+                f"<td>{ky_cell}</td>"
+                f'<td class="num-mute">{kvol}</td>'
+                f"<td>{py_cell}</td>"
+                f'<td class="num-mute">{pvol}</td>'
+                f"<td>{diff_html}</td>"
+                f'<td class="num-mute">{r.score:.0f}</td>'
                 "</tr>"
             )
         rows_html = "".join(rows_html_parts)

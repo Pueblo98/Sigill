@@ -166,14 +166,14 @@ export default function Models() {
 
   return (
     <div className="p-6">
-      <header className="flex justify-between items-center mb-8 pb-4 border-b border-[#4a4455]/10">
+      <header className="flex justify-between items-end mb-8 pb-4 border-b border-[#4a4455]/10">
         <div>
-          <h2 className="text-xs font-medium uppercase tracking-[0.2em] text-[#958da1] mb-1">
-            Model Performance
-          </h2>
-          <h1 className="text-2xl font-black tracking-tight text-[#e5e1e4]">
-            REGISTERED MODELS
+          <h1 className="text-2xl font-black tracking-tight text-[#e5e1e4] mb-1">
+            MODELS
           </h1>
+          <p className="text-[11px] font-mono text-[#958da1]">
+            every registered signal source — click into one for trades &amp; P&amp;L
+          </p>
         </div>
         <div className="text-[10px] font-mono uppercase tracking-widest text-[#958da1]">
           {models.length} model{models.length === 1 ? "" : "s"}

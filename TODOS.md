@@ -173,6 +173,70 @@ operator recipe.
 
 ---
 
+## TODO-11: Sunset `sigil-frontend/` (operator-gated)
+
+**What:** `git rm -r sigil-frontend/` once the operator has used the
+backend Python dashboard at `:8003` for a few sessions and signs off
+on parity. Same operation Phase 5.2 of
+`polished-crafting-feigenbaum.md` describes.
+
+**Why I can't do it:** needs operator sign-off after real-use parity
+verification. The Next.js app on port 3000 has no remaining unique
+features after the 2026-05-02 backend feature-parity slice, but the
+operator should drive a session or two through the Python dashboard
+before deletion.
+
+**Current parity status (as of 2026-05-02):** every backend-data page
+the frontend offered now lives on the Python dashboard, with feature
+gains:
+
+| Frontend page | Backend equivalent | Note |
+|---|---|---|
+| `/` (portfolio) | `/page/command-center` | bankroll + signals + health |
+| `/markets` | `/markets` | server-side search/filter/paginate (richer) |
+| `/trade-detail/[id]` | `/market/{external_id}` | adds breadcrumb + sibling list |
+| `/arbitrage` | `/page/spreads` | same `cross_platform_spreads` widget |
+| `/data-health` | `/page/health` | now includes source table + error log |
+| `/models` | `/models` | card grid mirroring frontend mechanic |
+| `/models/[id]` | `/models/{id}` | equity curve + trades + predictions |
+| `/execution` | `/execution` | filterable orders feed, 50/page |
+
+**Discovered:** backend feature parity slice, 2026-05-02.
+
+---
+
+## TODO-12: Re-wire analytical model widgets when needed
+
+**What:** `model_brier`, `model_calibration`, `model_roi_curve` are
+fully implemented + registered in `WIDGET_REGISTRY` but no longer
+referenced by any page in `dashboard.yaml`. The 2026-05-02 parity slice
+removed the YAML `models` page in favor of the standalone `/models`
+card grid + `/models/{id}` per-model detail. Per-model equity curves
+moved to the detail page; cross-model comparative analytics (e.g.
+side-by-side Brier scores, calibration plots over all eligible models)
+are not currently surfaced.
+
+**Fix sketch:** add a YAML page (e.g., `analytics`) in `dashboard.yaml`
+that references those three widgets. They'll mount, render, and
+auto-refresh on the existing 60s tick. CSS classes
+`.widget-model-{brier,calibration,roi-curve}` already exist. Update
+`tests/dashboard/test_dashboard_yaml.py` widget-count + page-list
+assertions accordingly.
+
+The widget-internal anchor tags already point at `/models/{model_id}`
+(added during the 2026-05-02 slice), so cross-clicking from a
+comparative page into the per-model detail works out of the box.
+
+**Why deferred:** the operator preferred a card-grid mechanic for
+`/models` over the analytical widgets. A dedicated `/analytics` page
+is fine but isn't actively requested. Re-wire when there's a felt need
+for cross-model comparison (likely after a few weeks of paper-trading
+data per TODO-2).
+
+**Discovered:** backend feature parity slice, 2026-05-02.
+
+---
+
 ## Decisions deferred but logged (not actioned)
 
 - **15-25% monthly ROI target:** held as PRD-stated; reviewer flagged as fantasy but user chose hold-scope.

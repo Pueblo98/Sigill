@@ -17,9 +17,9 @@ describe("getApiBase / buildUrl", () => {
     else process.env.NEXT_PUBLIC_API_URL = original;
   });
 
-  it("defaults to localhost:8000", () => {
+  it("defaults to localhost:8003 dev port", () => {
     delete process.env.NEXT_PUBLIC_API_URL;
-    expect(getApiBase()).toBe("http://localhost:8000");
+    expect(getApiBase()).toBe("http://localhost:8003");
   });
 
   it("respects NEXT_PUBLIC_API_URL", () => {
@@ -29,8 +29,8 @@ describe("getApiBase / buildUrl", () => {
 
   it("composes URLs correctly", () => {
     delete process.env.NEXT_PUBLIC_API_URL;
-    expect(buildUrl("/api/portfolio")).toBe("http://localhost:8000/api/portfolio");
-    expect(buildUrl("api/markets")).toBe("http://localhost:8000/api/markets");
+    expect(buildUrl("/api/portfolio")).toBe("http://localhost:8003/api/portfolio");
+    expect(buildUrl("api/markets")).toBe("http://localhost:8003/api/markets");
   });
 
   it("strips trailing slashes from base", () => {

@@ -1,7 +1,12 @@
 # Sigil — Runbook
 
 Operator-facing how-to for bringing the system up locally and verifying it.
-Last updated: Phase 5.0 + framework polish (2026-04-30).
+Last updated: markets sub-tabs (2026-05-02 evening). Standalone
+`/markets`, `/execution`, `/models`, `/models/{id}` routes; `/page/markets`
+and `/page/models` retired. Cross-platform spreads + Archived now live as
+sub-tabs on the Markets page (`?view=spreads`, `?view=archived`); the
+"Cross-platform spreads" topbar entry is gone but `/page/spreads` still
+renders directly.
 
 This runbook covers three flows:
 
@@ -94,37 +99,68 @@ SIGIL_SMOKE_DB='./sigil_smoke.db' SIGIL_SMOKE_PORT=8765 \
 UVICORN_PID=$!
 sleep 3   # let lifespan complete
 
-# 3. Curl every public surface
-curl -s -o /dev/null -w "GET /                       -> %{http_code}\n" \
+# 3. Curl every public surface. Note: `/page/markets` and `/page/models`
+#    were retired by the markets-explorer-v3 + backend-dashboard-feature-
+#    parity slices; the catalog and model card grid live at the
+#    standalone `/markets` and `/models` routes now (404 on the old
+#    URLs is expected and explicitly tested).
+curl -s -o /dev/null -w "GET /                          -> %{http_code}\n" \
     http://127.0.0.1:8765/
-curl -s -o /dev/null -w "GET /page/command-center    -> %{http_code}\n" \
+curl -s -o /dev/null -w "GET /page/command-center       -> %{http_code}\n" \
     http://127.0.0.1:8765/page/command-center
-curl -s -o /dev/null -w "GET /page/markets           -> %{http_code}\n" \
-    http://127.0.0.1:8765/page/markets
-curl -s -o /dev/null -w "GET /page/models            -> %{http_code}\n" \
-    http://127.0.0.1:8765/page/models
-curl -s -o /dev/null -w "GET /page/health            -> %{http_code}\n" \
+curl -s -o /dev/null -w "GET /page/spreads              -> %{http_code}\n" \
+    http://127.0.0.1:8765/page/spreads
+curl -s -o /dev/null -w "GET /page/health               -> %{http_code}\n" \
     http://127.0.0.1:8765/page/health
-curl -s -o /dev/null -w "GET /page/bogus             -> %{http_code}\n" \
+curl -s -o /dev/null -w "GET /markets                   -> %{http_code}\n" \
+    http://127.0.0.1:8765/markets
+curl -s -o /dev/null -w "GET /markets?view=spreads      -> %{http_code}\n" \
+    "http://127.0.0.1:8765/markets?view=spreads"
+curl -s -o /dev/null -w "GET /markets?view=archived     -> %{http_code}\n" \
+    "http://127.0.0.1:8765/markets?view=archived"
+curl -s -o /dev/null -w "GET /markets?archived=1        -> %{http_code}\n" \
+    "http://127.0.0.1:8765/markets?archived=1"
+curl -s -o /dev/null -w "GET /execution                 -> %{http_code}\n" \
+    http://127.0.0.1:8765/execution
+curl -s -o /dev/null -w "GET /models                    -> %{http_code}\n" \
+    http://127.0.0.1:8765/models
+curl -s -o /dev/null -w "GET /models/spread_arb         -> %{http_code}\n" \
+    http://127.0.0.1:8765/models/spread_arb
+curl -s -o /dev/null -w "GET /models/no-such-model      -> %{http_code}\n" \
+    http://127.0.0.1:8765/models/no-such-model
+curl -s -o /dev/null -w "GET /page/bogus                -> %{http_code}\n" \
     http://127.0.0.1:8765/page/bogus
-curl -s -o /dev/null -w "GET /dashboard/static/dashboard.css -> %{http_code}\n" \
+curl -s -o /dev/null -w "GET /page/models               -> %{http_code}\n" \
+    http://127.0.0.1:8765/page/models
+curl -s -o /dev/null -w "GET /dashboard/static/dashboard.css    -> %{http_code}\n" \
     http://127.0.0.1:8765/dashboard/static/dashboard.css
 curl -s -o /dev/null -w "GET /dashboard/static/relative-time.js -> %{http_code}\n" \
     http://127.0.0.1:8765/dashboard/static/relative-time.js
-curl -s -o /dev/null -w "GET /api/health             -> %{http_code}\n" \
+curl -s -o /dev/null -w "GET /api/health                -> %{http_code}\n" \
     http://127.0.0.1:8765/api/health
-curl -s -o /dev/null -w "GET /api/markets            -> %{http_code}\n" \
+curl -s -o /dev/null -w "GET /api/markets               -> %{http_code}\n" \
     http://127.0.0.1:8765/api/markets
+curl -s -o /dev/null -w "GET /api/models                -> %{http_code}\n" \
+    http://127.0.0.1:8765/api/models
 
 # Expected:
 #   /                          -> 302 (redirect to /page/<default>)
 #   /page/command-center       -> 200
-#   /page/markets              -> 200
-#   /page/models               -> 200
+#   /page/spreads              -> 200
 #   /page/health               -> 200
+#   /markets                   -> 200 (standalone route, default tab=all)
+#   /markets?view=spreads      -> 200 (renders cached cross_platform_spreads widget)
+#   /markets?view=archived     -> 200 (non-running markets tab)
+#   /markets?archived=1        -> 200 (legacy: translated to view=archived)
+#   /execution                 -> 200 (standalone route, 2026-05-02)
+#   /models                    -> 200 (standalone card grid, 2026-05-02)
+#   /models/<known model_id>   -> 200 (per-model detail, 2026-05-02)
+#   /models/<unknown>          -> 404
 #   /page/bogus                -> 404
+#   /page/models               -> 404 (retired in favor of /models)
 #   /dashboard/static/*        -> 200 (text/css and text/javascript)
-#   /api/health, /api/markets  -> 200
+#   /api/health, /api/markets,
+#   /api/models                -> 200
 
 # 4. Cleanup
 kill $UVICORN_PID 2>/dev/null

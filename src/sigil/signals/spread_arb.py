@@ -125,6 +125,8 @@ async def _upsert_market_for_side(
     title = detail.get("title") or side.title or side.external_id
     category_raw = detail.get("category")
     taxonomy = (str(category_raw).lower() if category_raw else "general")
+    description_raw = detail.get("description")
+    description = description_raw.strip() if isinstance(description_raw, str) and description_raw.strip() else None
 
     market = Market(
         platform=side.platform,
@@ -133,6 +135,7 @@ async def _upsert_market_for_side(
         taxonomy_l1=taxonomy,
         market_type="binary",
         status="open",
+        description=description,
     )
     session.add(market)
     await session.flush()

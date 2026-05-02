@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import asdict, is_dataclass
@@ -35,9 +36,13 @@ router = APIRouter(prefix="/api")
 
 # In-process TTL cache for stat-arb scan results.
 # Hitting Kalshi + Polymarket REST on every dashboard poll would be abusive;
-# the scan is deterministic enough that a 60s window is fine.
+# the scan is deterministic enough that a 60s window is fine. The asyncio
+# Lock is a single-flight guard — without it, SWR polls every 5s while a
+# scan takes >60s, so requests stack up and each kicks off its own
+# Polymarket CLOB enumeration (hammers their API + starves the worker).
 _ARB_CACHE_TTL_SECONDS = 60.0
 _arb_cache: Dict[str, Any] = {"ts": 0.0, "data": []}
+_arb_scan_lock = asyncio.Lock()
 
 
 def _opp_to_dict(opp: Any) -> Dict[str, Any]:
@@ -347,24 +352,37 @@ async def get_model_detail(
 @router.get("/arbitrage")
 async def get_arbitrage() -> List[Dict[str, Any]]:
     """Cross-platform stat-arb opportunities from `decision.stat_arb.StatArbScanner`.
-    Cached for 60s in-process. DISPLAY ONLY per REVIEW-DECISIONS.md 1C."""
+    Cached for 60s in-process. DISPLAY ONLY per REVIEW-DECISIONS.md 1C.
+
+    Single-flight: at most one StatArbScanner.scan() runs at a time even
+    when SWR polling stacks N concurrent requests waiting on a slow
+    (>60s) Polymarket CLOB enumeration. Followers grab the freshly
+    populated cache after the leader returns.
+    """
     now = time.monotonic()
     if (now - _arb_cache["ts"]) < _ARB_CACHE_TTL_SECONDS and _arb_cache["data"]:
         return _arb_cache["data"]
 
-    # Imported lazily so the API can boot even if the decision module is mid-edit.
-    from sigil.decision.stat_arb import StatArbScanner
-
-    scanner = StatArbScanner()
-    try:
-        opps = await scanner.scan()
-    except Exception as exc:
-        logger.warning(f"stat-arb scan failed: {exc}")
-        if _arb_cache["data"]:
+    async with _arb_scan_lock:
+        # Re-check after acquiring the lock — a previous holder may have
+        # populated the cache while we were waiting.
+        now = time.monotonic()
+        if (now - _arb_cache["ts"]) < _ARB_CACHE_TTL_SECONDS and _arb_cache["data"]:
             return _arb_cache["data"]
-        return []
 
-    serialized = [_opp_to_dict(o) for o in opps]
-    _arb_cache["ts"] = now
-    _arb_cache["data"] = serialized
-    return serialized
+        # Imported lazily so the API can boot even if the decision module is mid-edit.
+        from sigil.decision.stat_arb import StatArbScanner
+
+        scanner = StatArbScanner()
+        try:
+            opps = await scanner.scan()
+        except Exception as exc:
+            logger.warning(f"stat-arb scan failed: {exc}")
+            if _arb_cache["data"]:
+                return _arb_cache["data"]
+            return []
+
+        serialized = [_opp_to_dict(o) for o in opps]
+        _arb_cache["ts"] = now
+        _arb_cache["data"] = serialized
+        return serialized

@@ -139,6 +139,13 @@ class PolymarketDataSource(DataSource):
             cid = m.get("conditionId") or m.get("condition_id")
             if not cid:
                 continue
+            description = m.get("description")
+            if isinstance(description, str):
+                description = description.strip() or None
+            else:
+                description = None
+            archived_raw = m.get("archived")
+            archived = bool(archived_raw) if archived_raw is not None else False
             rows.append({
                 "external_id": cid,
                 "platform": "polymarket",
@@ -147,6 +154,8 @@ class PolymarketDataSource(DataSource):
                 "market_type": "binary",
                 "status": "open",
                 "resolution_date": m.get("endDate") or m.get("end_date_iso"),
+                "description": description,
+                "archived": archived,
             })
         return pd.DataFrame(rows)
 

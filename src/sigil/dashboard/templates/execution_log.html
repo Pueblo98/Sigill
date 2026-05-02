@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Execution{% endblock %}
+{% block content %}
+<section class="page markets-list">
+  <header class="markets-list__header">
+    <h1 class="markets-list__title">Execution</h1>
+    <div class="markets-list__count">
+      Showing {{ rows|length }} of {{ total }} orders
+      {% if page > 1 or total_pages > 1 %}
+        — page {{ page }} of {{ total_pages }}
+      {% endif %}
+    </div>
+
+    <form class="markets-list__filters" method="get" action="/execution">
+      <div class="markets-list__filter">
+        <label for="platform">Platform</label>
+        <select id="platform" name="platform">
+          <option value="">all</option>
+          {% for p in platforms %}
+            <option value="{{ p }}" {% if p == platform %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="markets-list__filter">
+        <label for="mode">Mode</label>
+        <select id="mode" name="mode">
+          <option value="">all</option>
+          {% for m in modes %}
+            <option value="{{ m }}" {% if m == mode %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="markets-list__filter">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          <option value="">all</option>
+          {% for s in statuses %}
+            <option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="markets-list__filter markets-list__filter--actions">
+        <button type="submit" class="markets-list__submit">Apply</button>
+        <a class="markets-list__reset" href="/execution">Reset</a>
+      </div>
+    </form>
+  </header>
+
+  {% if rows %}
+    <table class="markets-list__table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Platform</th>
+          <th>Mode</th>
+          <th>Market</th>
+          <th>Side</th>
+          <th>Outcome</th>
+          <th>Type</th>
+          <th>Qty</th>
+          <th>Price</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td {% if r.created_at %}data-relative-time="{{ r.created_at.isoformat() }}"{% endif %}>
+              {{ r.created_at.isoformat() if r.created_at else "-" }}
+            </td>
+            <td>{{ r.platform }}</td>
+            <td>
+              <span class="markets-list__mode-chip markets-list__mode-chip--{{ r.mode }}">{{ r.mode }}</span>
+            </td>
+            <td>
+              {% if r.market_external_id %}
+                <a href="/market/{{ r.market_external_id }}">{{ r.market_title }}</a>
+              {% else %}
+                {{ r.market_title }}
+              {% endif %}
+            </td>
+            <td>{{ r.side }}</td>
+            <td>{{ r.outcome }}</td>
+            <td>{{ r.order_type }}</td>
+            <td>
+              {{ r.filled_quantity }}{% if r.filled_quantity != r.quantity %} / {{ r.quantity }}{% endif %}
+            </td>
+            <td>
+              {{ "%.3f"|format(r.avg_fill_price) if r.avg_fill_price is not none
+                 else "%.3f"|format(r.price) }}
+            </td>
+            <td>{{ r.status }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <nav class="markets-list__pagination">
+      {% set base_qs = "platform=" ~ platform ~ "&mode=" ~ mode ~ "&status=" ~ status %}
+      {% if page > 1 %}
+        <a href="/execution?{{ base_qs }}&page={{ page - 1 }}">← prev</a>
+      {% else %}
+        <span class="markets-list__pagination-disabled">← prev</span>
+      {% endif %}
+      <span class="markets-list__pagination-pos">page {{ page }} / {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a href="/execution?{{ base_qs }}&page={{ page + 1 }}">next →</a>
+      {% else %}
+        <span class="markets-list__pagination-disabled">next →</span>
+      {% endif %}
+    </nav>
+  {% else %}
+    <div class="markets-list__empty">
+      No orders match the current filters.
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

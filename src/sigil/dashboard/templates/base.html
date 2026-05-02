@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{# Server-rendered HTML is a snapshot — auto-reload every 30s so the
+   user sees fresh ticks without hitting F5. Slightly noisy on slow
+   pages but matches the OddsPipe poll cadence + widget refresh tick. #}
+<meta http-equiv="refresh" content="30">
 <title>{% block title %}{{ page_title or "Sigil" }}{% endblock %} | Sigil</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231b1b1d'/%3E%3Ctext x='3' y='12' font-family='monospace' font-size='10' fill='%23d2bbff'%3ES%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="/dashboard/static/dashboard.css">
@@ -25,7 +29,7 @@
   <nav class="topbar__nav">
     {% for p in nav_pages %}
       <a class="topbar__link{% if p.name == current_page %} topbar__link--active{% endif %}"
-         href="/page/{{ p.name }}">{{ p.title }}</a>
+         href="{{ p.url or ('/page/' ~ p.name) }}">{{ p.title }}</a>
     {% endfor %}
   </nav>
 </header>
@@ -39,5 +43,6 @@
   <span class="footer__note">server-rendered, refresh cycles run in the background.</span>
 </footer>
 <script src="/dashboard/static/relative-time.js" defer></script>
+<script src="/dashboard/static/tick-pulse.js" defer></script>
 </body>
 </html>

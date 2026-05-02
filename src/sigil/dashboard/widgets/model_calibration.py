@@ -129,7 +129,9 @@ class ModelCalibrationWidget(WidgetBase):
             )
             sections.append(
                 '<section class="calibration-model">'
-                f'<h3 class="calibration-model__title">{escape(view.model_id)}</h3>'
+                f'<h3 class="calibration-model__title">'
+                f'<a href="/models/{escape(view.model_id)}">{escape(view.model_id)}</a>'
+                "</h3>"
                 f'<div class="calibration-model__count">'
                 f"n_predictions = {view.n_predictions}</div>"
                 f'<div class="calibration-model__chart">{view.svg}</div>'

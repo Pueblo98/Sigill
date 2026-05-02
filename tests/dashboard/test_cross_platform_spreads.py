@@ -92,7 +92,11 @@ async def test_renders_empty_state():
     assert isinstance(out, Markup)
 
 
-async def test_renders_table_with_links():
+async def test_renders_table_with_internal_links():
+    """Spread rows link to /market/{external_id} (internal) so the
+    operator stays inside the dashboard. The legacy ``*_url`` fields
+    on SpreadRow are kept for back-compat but no longer referenced
+    by render()."""
     rows = [SpreadRow(
         question="Will Mary Peltola win the 2026 Alaska Senate race?",
         score=98.0,
@@ -104,6 +108,8 @@ async def test_renders_table_with_links():
         polymarket_yes=0.68,
         polymarket_vol=98765.0,
         polymarket_url="https://polymarket.com",
+        kalshi_external_id="KX-PELTOLA",
+        polymarket_external_id="0xabc123",
     )]
     out = str(_widget().render(rows))
     assert "Mary Peltola" in out
@@ -111,8 +117,33 @@ async def test_renders_table_with_links():
     assert "0.680" in out
     assert "$12,345" in out
     assert "$98,765" in out
-    assert "kalshi.com/markets/KX-PELTOLA" in out
+    # Internal links — both YES prices link to /market/{external_id}.
+    assert 'href="/market/KX-PELTOLA"' in out
+    assert 'href="/market/0xabc123"' in out
+    # Old external links are not in the rendered output anymore.
+    assert "kalshi.com/markets" not in out
+    assert 'target="_blank"' not in out
     assert "98" in out  # score
+
+
+async def test_question_falls_back_to_polymarket_id_if_no_kalshi():
+    rows = [SpreadRow(
+        question="Polymarket-only-listed event",
+        score=96.0,
+        yes_diff=0.05,
+        direction="polymarket_higher",
+        kalshi_yes=None,
+        kalshi_vol=0.0,
+        kalshi_url="https://kalshi.com",
+        polymarket_yes=0.55,
+        polymarket_vol=1234.0,
+        polymarket_url="https://polymarket.com",
+        kalshi_external_id=None,
+        polymarket_external_id="0xfeedface",
+    )]
+    out = str(_widget().render(rows))
+    # Question links via the polymarket id when the kalshi side is absent.
+    assert 'href="/market/0xfeedface">Polymarket-only-listed event</a>' in out
 
 
 async def test_skips_match_missing_a_side(respx_mock):

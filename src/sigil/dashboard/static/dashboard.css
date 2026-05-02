@@ -670,3 +670,521 @@ svg.chart, svg.calibration, svg.brier, svg.roi-curve {
   font-size: 18px;
   color: var(--fg);
 }
+
+/* --- archived badge + description block on detail page --------------- */
+.market-detail__status.market-detail__archived {
+  color: var(--fg-faint);
+  border-color: var(--fg-faint);
+  opacity: 0.85;
+}
+.market-detail__description {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin: 12px 0 16px;
+}
+.market-detail__description h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  margin: 0 0 8px;
+}
+.market-detail__description-body {
+  white-space: pre-wrap;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.market-detail__description-empty {
+  color: var(--fg-faint);
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.5;
+}
+.market-detail__description-empty code {
+  font-style: normal;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-size: 11px;
+}
+
+/* Sparkline-fallback note when 7-day history is flat or missing. */
+.market-detail__sparkline-note {
+  font-size: 12px;
+  color: var(--fg-faint);
+  font-style: italic;
+  padding: 16px 12px;
+  text-align: center;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+}
+
+/* Order book section */
+.market-detail__orderbook {
+  margin-top: 16px;
+}
+.market-detail__orderbook h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  margin: 0 0 8px;
+}
+.market-detail__orderbook-source {
+  font-size: 10px;
+  color: var(--fg-faint);
+  margin-top: 8px;
+  font-family: var(--font-mono);
+}
+.market-detail__orderbook-source code {
+  background: var(--bg);
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+.market-detail__orderbook-note {
+  font-size: 11px;
+  color: var(--fg-faint);
+  font-style: italic;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.market-detail__ladder {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.market-detail__ladder-col {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+.market-detail__ladder-header {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.market-detail__ladder-col--bids .market-detail__ladder-header { color: var(--positive); }
+.market-detail__ladder-col--asks .market-detail__ladder-header { color: var(--negative); }
+.market-detail__ladder table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.market-detail__ladder th {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  padding: 4px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.market-detail__ladder td {
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+/* --- standalone /markets explorer ------------------------------------ */
+.markets-list { padding: 8px 0; }
+.markets-list__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.markets-list__title {
+  font-size: 18px;
+  margin: 0;
+}
+.markets-list__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.markets-list__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.markets-list__filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.markets-list__filter label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+}
+.markets-list__filter input[type="text"],
+.markets-list__filter select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-radius: 2px;
+  min-width: 140px;
+}
+.markets-list__filter--checkbox label {
+  flex-direction: row;
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--fg);
+}
+.markets-list__filter--actions {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.markets-list__submit {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  padding: 5px 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.markets-list__reset {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--fg-faint);
+}
+.markets-list__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.markets-list__table th,
+.markets-list__table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-align: left;
+}
+.markets-list__table th {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  font-weight: 600;
+}
+.markets-list__table td a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.markets-list__table td a:hover { text-decoration: underline; }
+.markets-list__row--archived td {
+  color: var(--fg-faint);
+}
+.markets-list__archived-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 1px solid var(--fg-faint);
+  color: var(--fg-faint);
+  border-radius: 2px;
+}
+.markets-list__pagination {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.markets-list__pagination a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.markets-list__pagination a:hover { text-decoration: underline; }
+.markets-list__pagination-disabled {
+  color: var(--fg-faint);
+  opacity: 0.5;
+}
+.markets-list__pagination-pos {
+  color: var(--fg-muted);
+}
+.markets-list__empty {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+/* Execution log mode chip — paper (neutral) vs live (warning red).
+   Reuses the .markets-list__archived-pill metrics so the visual rhythm
+   stays the same; only the color treatment differentiates a paper trade
+   from a real-money order. */
+.markets-list__mode-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 2px;
+  border: 1px solid var(--fg-faint);
+  color: var(--fg-faint);
+}
+.markets-list__mode-chip--live {
+  border-color: var(--negative);
+  color: var(--negative);
+}
+.markets-list__mode-chip--paper {
+  border-color: var(--fg-muted);
+  color: var(--fg-muted);
+}
+
+/* --- Models list (card grid) ---------------------------------------- */
+.models-list { padding: 24px 0; }
+.models-list__header {
+  margin-bottom: 16px;
+}
+.models-list__title {
+  font-size: 18px;
+  color: var(--fg);
+  margin: 0 0 4px;
+}
+.models-list__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.models-list__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.models-list__card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 16px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+.models-list__card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.models-list__card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.models-list__card-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.models-list__card-version {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.models-list__card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+  color: var(--fg-muted);
+}
+.models-list__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  display: inline-block;
+}
+.models-list__card-status--live { color: var(--positive); }
+.models-list__card-status--live .models-list__status-dot { background: var(--positive); }
+.models-list__card-status--idle { color: var(--fg-muted); }
+.models-list__card-status--idle .models-list__status-dot { background: var(--fg-muted); }
+.models-list__card-status--disabled { color: var(--negative); }
+.models-list__card-status--disabled .models-list__status-dot { background: var(--negative); }
+.models-list__card-desc {
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+.models-list__card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.models-list__card-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--fg-faint);
+  background: var(--bg);
+}
+.models-list__card-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.models-list__card-stat-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  margin-bottom: 2px;
+}
+.models-list__card-stat-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg);
+}
+.models-list__card-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.models-list__card-footer-sep {
+  color: var(--border);
+}
+.models-list__empty {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+/* Markets in-page tab strip — sigil-frontend/DESIGN.md "vertical IA"
+   pattern (§ Sub-navigation): slim bar of underlined-on-active labels
+   at the top of the content column. Used for /markets sub-views
+   (All · Cross-platform spreads · Archived). */
+.markets-list__tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--border);
+  margin: 4px 0 12px;
+}
+.markets-list__tab {
+  display: inline-block;
+  padding: 8px 0;
+  margin-bottom: -1px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.markets-list__tab:hover { color: var(--fg); }
+.markets-list__tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.markets-list__embedded-widget {
+  /* Container for an inline-rendered widget on the spreads tab.
+     The widget brings its own .widget shell + table styling; we
+     just give it room and a top edge that matches the rest of the
+     page rhythm. */
+  margin-top: 8px;
+}
+.markets-list__embedded-empty {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+/* --- Numeric tone tokens + pulse-on-change ----------------------------
+   .num-* classes give numeric stats a stable polarity color so the
+   operator can read gain/loss/neutral at a glance. Pair with the
+   data-tick-key / data-tick-value attributes consumed by tick-pulse.js
+   for a brief animated highlight whenever the value changed since the
+   previous page refresh. */
+.num-pos { color: var(--positive); }
+.num-neg { color: var(--negative); }
+.num-warn { color: var(--accent); }
+.num-mute { color: var(--fg-muted); }
+
+@keyframes tick-pulse-up {
+  0%   { background-color: rgba(16, 185, 129, 0.55); color: var(--positive); }
+  60%  { background-color: rgba(16, 185, 129, 0.18); }
+  100% { background-color: transparent; }
+}
+@keyframes tick-pulse-down {
+  0%   { background-color: rgba(239, 68, 68, 0.55); color: var(--negative); }
+  60%  { background-color: rgba(239, 68, 68, 0.18); }
+  100% { background-color: transparent; }
+}
+.tick-pulse-up,
+.tick-pulse-down {
+  /* Reserve the animation channel; don't fight with the steady-state
+     numeric color rules above. */
+  border-radius: 2px;
+  padding: 0 3px;
+  margin: 0 -3px;
+}
+.tick-pulse-up   { animation: tick-pulse-up 1.8s ease-out; }
+.tick-pulse-down { animation: tick-pulse-down 1.8s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .tick-pulse-up, .tick-pulse-down { animation-duration: 0.001s; }
+}

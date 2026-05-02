@@ -30,6 +30,14 @@ class Config(BaseModel):
     # source automatically; clear it to disable.
     ODDSPIPE_API_KEY: Optional[str] = None
     ODDSPIPE_BASE_URL: str = "https://oddspipe.com"
+    # Default 300s — matches decision 4A (Odds API 5-min freshness on
+    # the $50/mo tier) and the cross_platform_spreads widget cache TTL,
+    # so the dashboard refresh cadence and the upstream feed land on
+    # the same beat. Operator can drop to 60-120s for a "live feel" if
+    # they have headroom on the OddsPipe quota — at 300s we burn ~12
+    # calls/hour which is well under the free tier, at 60s we burn 60
+    # and risk 429s. The cross_platform_spreads widget cache=5m in
+    # dashboard.yaml is aligned with this default.
     ODDSPIPE_POLL_SECONDS: int = 300
     ODDSPIPE_MARKETS_PER_PLATFORM: int = 100
 
@@ -111,7 +119,11 @@ class Config(BaseModel):
     SOURCE_FAILURE_CRITICAL: int = 10
 
     API_BIND_HOST: str = Field(default="127.0.0.1")
-    API_BIND_PORT: int = 8000
+    # 8000/8001/8002 all carry zombie LISTEN sockets on the dev box from
+    # repeated kill cycles in this session. 8003 is the next clean port;
+    # a reboot clears all of them. Operators can override via
+    # secrets.local.yaml.
+    API_BIND_PORT: int = 8003
     FRONTEND_ORIGIN: str = "http://localhost:3000"
 
     SOPS_AGE_KEY_FILE: str = Field(default_factory=lambda: str(Path.home() / ".config" / "sigil" / "age.key"))

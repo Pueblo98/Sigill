@@ -45,3 +45,10 @@ age.key
 secrets.local.yaml
 
 .claude/worktrees/
+.claude/worktrees-archive/
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+
+# Root-level node_modules is a transient bun/vite scratch dir, not the
+# frontend's. The frontend's own node_modules is excluded above.
+/node_modules/
